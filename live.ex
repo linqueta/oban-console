@@ -80,3 +80,92 @@ defmodule Oban.Console.Jobs do
 
   defp filter_by_limit(query, limit), do: limit(query, ^limit)
 end
+
+defmodule Oban.Console.Menus do
+  def print(:queues) do
+    """
+    Queues:
+
+    1. List
+    2. Pause
+    3. Resume
+    0. Return
+    """
+  end
+
+  def print(queues: :list) do
+    """
+    1. Pause
+    2. Resume
+    0. Return
+    """
+  end
+
+  def print(:jobs) do
+    """
+    Jobs:
+
+    1. List
+    2. Debug
+    3. Retry
+    4. Cancel
+    0. Return
+    """
+  end
+
+  def print() do
+    """
+    Menus:
+    1. Queues
+    2. Jobs
+    0. Exit
+    """
+  end
+end
+
+defmodule Oban.Console.Interactive do
+  def start() do
+    IO.puts("")
+    IO.puts("Welcome to Oban Console")
+
+    initial_menu()
+  end
+
+  defp initial_menu() do
+    IO.puts(Oban.Console.Menus.print())
+
+    case IO.gets("Select an option: ") do
+      "1\n" -> queues()
+      "2\n" -> jobs()
+      "0\n" -> IO.puts("Goodbye!")
+      _ -> initial_menu()
+    end
+  end
+
+  defp queues() do
+    IO.puts("")
+    IO.puts(Oban.Console.Menus.print(:queues))
+
+    case IO.gets("Select an option: ") do
+      "1\n" -> IO.puts("Option 1")
+      "2\n" -> IO.puts("Option 2")
+      "3\n" -> IO.puts("Option 3")
+      "0\n" -> initial_menu()
+      _ -> queues()
+    end
+  end
+
+  defp jobs() do
+    IO.puts("")
+    IO.puts(Oban.Console.Menus.print(:jobs))
+
+    case IO.gets("Select an option: ") do
+      "1\n" -> IO.puts("Option 1")
+      "2\n" -> IO.puts("Option 2")
+      "3\n" -> IO.puts("Option 3")
+      "4\n" -> IO.puts("Option 4")
+      "0\n" -> initial_menu()
+      _ -> jobs()
+    end
+  end
+end
