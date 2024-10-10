@@ -22,7 +22,8 @@ defmodule Oban.Console.MixProject do
   defp deps do
     [
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
-      {:oban, "~> 2.17", optional: true}
+      {:oban, "~> 2.17", optional: true},
+      {:jason, "~> 1.4"}
     ]
   end
 end
