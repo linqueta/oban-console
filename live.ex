@@ -50,6 +50,18 @@ defmodule Oban.Console.Queues do
 end
 
 defmodule Oban.Console.Jobs do
+  alias Oban.Console.View.Printer
+
+  @states %{
+    "1" => "available",
+    "2" => "scheduled",
+    "3" => "retryable",
+    "4" => "executing",
+    "5" => "completed",
+    "6" => "discarded",
+    "7" => "cancelled"
+  }
+
   @in_progress_states ~w[available scheduled retryable executing]
   @failed_states ~w[cancelled discarded]
 
@@ -67,24 +79,53 @@ defmodule Oban.Console.Jobs do
     headers = [:id, :worker, :state, :queue, :attempt, :attempted_at, :scheduled_at]
     opts = if opts == [], do: Storage.get_last_jobs_opts(), else: opts
 
+    limit = Keyword.get(opts, :limit, 20) || 20
+    converted_states = convert_states(Keyword.get(opts, :states, [])) || []
+
+    opts = Keyword.put(opts, :states, converted_states)
+    opts = Keyword.put(opts, :limit, limit)
+
     Storage.set_last_jobs_opts(opts)
 
     response = list(opts)
 
-    # Oban
-    # |> Oban.config()
-    # |> Oban.Repo.to_sql(:all, list_query(opts))
-    # |> elem(0)
-    # |> IO.puts()
+    filters =
+      Enum.reject(opts, fn
+        {_, nil} -> true
+        {_, []} -> true
+        {_, _} -> false
+      end)
+
+    current_time = Calendar.strftime(DateTime.utc_now(), "%Y-%m-%d %H:%M:%S")
 
     Oban.Console.View.Table.show(
       response,
       headers,
-      "Filters: #{inspect(opts)} Sorts: DESC attempted_at, state"
+      "[#{current_time}] Rows: #{length(response)} Filters: #{inspect(filters)} Sorts: DESC attempted_at, DESC scheduled_at"
     )
   end
 
   def clean_storage(), do: Storage.set_last_jobs_opts([])
+
+  def debug_jobs(job_id) when is_integer(job_id) do
+    Oban
+    |> Oban.config()
+    |> Oban.Repo.get(Oban.Job, job_id)
+    |> then(fn
+      nil ->
+        Printer.break()
+
+        ["Job", job_id, "Job not found"] |> Printer.title() |> IO.puts()
+
+      job ->
+        Printer.break()
+
+        ["Job", job_id] |> Printer.title() |> IO.puts()
+        IO.inspect(job)
+    end)
+  end
+
+  def debug_jobs([_ | _] = jobs_ids), do: Enum.each(jobs_ids, &debug_jobs/1)
 
   def retry(job_id) when is_integer(job_id), do: Oban.retry_job(job_id)
   def retry([_ | _] = jobs_ids), do: Enum.each(jobs_ids, &Oban.retry_job/1)
@@ -92,16 +133,26 @@ defmodule Oban.Console.Jobs do
   def cancel(job_id) when is_integer(job_id), do: Oban.cancel_job(job_id)
   def cancel([_ | _] = jobs_ids), do: Enum.each(jobs_ids, &Oban.cancel_job/1)
 
-  defp to_sql(query), do: Oban |> Oban.config() |> Oban.Repo.to_sql(query, :all)
-
   defp list_query(opts) do
     Oban.Job
     |> filter_by_ids(Keyword.get(opts, :ids))
     |> filter_by_states(Keyword.get(opts, :states))
     |> filter_by_queues(Keyword.get(opts, :queues))
+    |> filter_by_workers(Keyword.get(opts, :workers))
     |> sort_by_attempted_at()
-    |> sort_by_states()
-    |> limit_by(Keyword.get(opts, :limit, 20))
+    |> sort_by_scheduled_at()
+    |> limit_by(Keyword.get(opts, :limit))
+  end
+
+  defp convert_states(states) do
+    states
+    |> Enum.map(fn
+      "in_progress" -> @in_progress_states
+      "failed" -> @failed_states
+      state when state in ["1", "2", "3", "4", "5", "6", "7"] -> Map.get(@states, state)
+      state -> state
+    end)
+    |> List.flatten()
   end
 
   defp filter_by_ids(query, nil), do: query
@@ -110,38 +161,27 @@ defmodule Oban.Console.Jobs do
 
   defp filter_by_states(query, nil), do: query
   defp filter_by_states(query, []), do: query
-
-  defp filter_by_states(query, states) do
-    selected_states =
-      states
-      |> Enum.map(fn
-        "in_progress" -> @in_progress_states
-        "failed" -> @failed_states
-        state -> state
-      end)
-      |> List.flatten()
-
-    where(query, [j], j.state in ^selected_states)
-  end
+  defp filter_by_states(query, states), do: where(query, [j], j.state in ^states)
 
   defp filter_by_queues(query, nil), do: query
   defp filter_by_queues(query, []), do: query
   defp filter_by_queues(query, queues), do: where(query, [j], j.queue in ^queues)
 
+  defp filter_by_workers(query, nil), do: query
+  defp filter_by_workers(query, []), do: query
+
+  defp filter_by_workers(query, workers) do
+    Enum.reduce(workers, query, fn worker, acc ->
+      where(acc, [j], like(j.worker, ^"%#{worker}%"))
+    end)
+  end
+
+  defp limit_by(query, nil), do: limit(query, 20)
   defp limit_by(query, limit), do: limit(query, ^limit)
 
   defp sort_by_attempted_at(query), do: order_by(query, [j], desc: j.attempted_at)
 
-  defp sort_by_states(query) do
-    order_by(
-      query,
-      [_],
-      fragment("""
-        CASE state WHEN 'executing' THEN 1 WHEN 'available' THEN 2 WHEN 'retryable' THEN 3WHEN 'scheduled' THEN 4WHEN 'completed' THEN 5WHEN 'discarded' THEN 6WHEN 'cancelled' THEN 7
-        END
-      """)
-    )
-  end
+  defp sort_by_scheduled_at(query), do: order_by(query, [j], desc: j.scheduled_at)
 end
 
 defmodule Oban.Console.View.Printer do
@@ -170,16 +210,22 @@ defmodule Oban.Console.View.Printer do
   @spec break() :: :ok
   def break, do: IO.puts("")
 
-  def gets([header | remaining]) do
+  def title([header | remaining]) do
     [header_color(header), remaining]
     |> List.flatten()
     |> Enum.join(" | ")
+  end
+
+  def gets(items) do
+    title(items)
     |> IO.gets()
     |> String.trim()
   end
 
   def header_color(text), do: IO.ANSI.light_blue() <> text <> IO.ANSI.reset()
 
+  def showable(%DateTime{} = datetime), do: Calendar.strftime(datetime, "%Y-%m-%d %H:%M:%S")
+  def showable(%NaiveDateTime{} = datetime), do: Calendar.strftime(datetime, "%Y-%m-%d %H:%M:%S")
   def showable(value) when is_binary(value), do: value
   def showable(value), do: inspect(value)
 
@@ -347,11 +393,11 @@ defmodule Oban.Console.Interactive do
     end
   end
 
-  defp jobs(opts \\ []) do
-    Jobs.show_list(opts)
+  defp jobs(opts \\ [], list \\ true) do
+    if list, do: Jobs.show_list(opts)
 
     Printer.menu("Jobs:", [
-      {1, "Refresh"},
+      {1, "List/Refresh"},
       {2, "Filter"},
       {3, "Debug"},
       {4, "Retry"},
@@ -363,9 +409,9 @@ defmodule Oban.Console.Interactive do
     case Printer.gets(["Select an option: "]) do
       "1" -> jobs()
       "2" -> filter_jobs()
-      "3" -> IO.puts("Comming soon") && jobs()
-      "4" -> IO.puts("Comming soon") && jobs()
-      "5" -> IO.puts("Comming soon") && jobs()
+      "3" -> debug_jobs() && jobs([], false)
+      "4" -> retry_jobs() && jobs()
+      "5" -> cancel_jobs() && jobs()
       "6" -> clean_jobs() && jobs()
       "0" -> initial_menu()
       "" -> jobs()
@@ -373,7 +419,37 @@ defmodule Oban.Console.Interactive do
     end
   end
 
+  defp debug_jobs() do
+    ids =
+      Printer.gets(["Debug", "Job IDs (comma separated): "])
+      |> String.split(",")
+      |> Enum.map(fn s -> s |> String.trim() |> parse_to_integer() end)
+      |> presence()
+
+    Jobs.debug_jobs(ids)
+  end
+
   defp clean_jobs(), do: Jobs.clean_storage()
+
+  defp cancel_jobs() do
+    ids =
+      Printer.gets(["Cancel", "Job IDs (comma separated): "])
+      |> String.split(",")
+      |> Enum.map(fn s -> s |> String.trim() |> parse_to_integer() end)
+      |> presence()
+
+    Jobs.cancel(ids)
+  end
+
+  defp retry_jobs() do
+    ids =
+      Printer.gets(["Retry", "Job IDs (comma separated): "])
+      |> String.split(",")
+      |> Enum.map(fn s -> s |> String.trim() |> parse_to_integer() end)
+      |> presence()
+
+    Jobs.retry(ids)
+  end
 
   defp filter_jobs() do
     ids =
@@ -385,13 +461,30 @@ defmodule Oban.Console.Interactive do
     states =
       Printer.gets([
         "Filter",
-        "States (comma separated) (available, scheduled, retryable, executing, completed, discarded, cancelled): "
+        "States (comma separated) (1. available, 2. scheduled, 3. retryable, 4. executing, 5. completed, 6. discarded, 7. cancelled): "
       ])
       |> String.split(",")
       |> Enum.map(&String.trim/1)
       |> presence()
 
-    jobs(ids: ids, states: states)
+    queues =
+      Printer.gets(["Filter", "Queues (comma separated): "])
+      |> String.split(",")
+      |> Enum.map(&String.trim/1)
+      |> presence()
+
+    workers =
+      Printer.gets(["Filter", "Workers (comma separated): "])
+      |> String.split(",")
+      |> Enum.map(&String.trim/1)
+      |> presence()
+
+    limit =
+      Printer.gets(["Filter", "Limit (default 20): "])
+      |> parse_to_integer()
+      |> presence()
+
+    jobs(ids: ids, states: states, limit: limit, workers: workers)
   end
 
   defp parse_to_integer(""), do: nil
