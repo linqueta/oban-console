@@ -176,6 +176,17 @@ defmodule Oban.Console.Storage do
   def set_last_jobs_opts(opts) do
     System.put_env("OBAN_CONSOLE_JOBS_LAST_OPTS", opts |> Map.new() |> Jason.encode!())
   end
+
+  def get_last_jobs_ids() do
+    case System.get_env("OBAN_CONSOLE_JOBS_LAST_IDS") do
+      nil -> []
+      value -> value |> Jason.decode!()
+    end
+  end
+
+  def set_last_jobs_ids(ids) do
+    System.put_env("OBAN_CONSOLE_JOBS_LAST_IDS", ids |> Jason.encode!())
+  end
 end
 
 defmodule Oban.Console.Queues do
@@ -247,19 +258,32 @@ defmodule Oban.Console.Jobs do
     |> Oban.Repo.all(list_query(opts))
   end
 
+  defp ids_listed_before(opts) do
+    case Keyword.get(opts, :ids, []) do
+      nil -> []
+      [0] -> Storage.get_last_jobs_ids()
+      ids -> ids
+    end
+  end
+
   def show_list(opts \\ []) do
     headers = [:id, :worker, :state, :queue, :attempt, :inserted_at, :attempted_at, :scheduled_at]
     opts = if opts == [], do: Storage.get_last_jobs_opts(), else: opts
 
     limit = Keyword.get(opts, :limit, 20) || 20
     converted_states = convert_states(Keyword.get(opts, :states, [])) || []
+    ids = ids_listed_before(opts)
 
+    opts = Keyword.put(opts, :ids, ids)
     opts = Keyword.put(opts, :states, converted_states)
     opts = Keyword.put(opts, :limit, limit)
 
     Storage.set_last_jobs_opts(opts)
 
     response = list(opts)
+
+    ids = Enum.map(response, fn job -> job.id end)
+    Storage.set_last_jobs_ids(ids)
 
     filters =
       Enum.reject(opts, fn
@@ -275,6 +299,12 @@ defmodule Oban.Console.Jobs do
       headers,
       "[#{current_time}] Rows: #{length(response)} Filters: #{inspect(filters)} Sorts: DESC attempted_at, DESC scheduled_at"
     )
+  rescue
+    e ->
+      Printer.red(inspect(e)) |> IO.puts()
+      Storage.set_last_jobs_opts([])
+
+      show_list()
   end
 
   def clean_storage(), do: Storage.set_last_jobs_opts([])
@@ -419,6 +449,7 @@ end
 defmodule Oban.Console.Interactive do
   alias Oban.Console.Jobs
   alias Oban.Console.Queues
+  alias Oban.Console.Storage
   alias Oban.Console.View.Printer
 
   def start() do
@@ -482,11 +513,10 @@ defmodule Oban.Console.Interactive do
     Printer.menu("Jobs:", [
       {1, "List/Refresh"},
       {2, "Filter"},
-      {3, "Filter (opts)"},
-      {4, "Debug"},
-      {5, "Retry"},
-      {6, "Cancel"},
-      {7, "Clean"},
+      {3, "Debug"},
+      {4, "Retry"},
+      {5, "Cancel"},
+      {6, "Clean"},
       {0, "Return"}
     ])
 
@@ -515,12 +545,6 @@ defmodule Oban.Console.Interactive do
     |> command(:retry_jobs)
   end
 
-  defp filter_jobs_opts() do
-    ["Filter", "Opts list: "]
-    |> Printer.gets()
-    |> command(:filter_jobs_opts)
-  end
-
   defp command(value, :initial_menu) when value in ["1", "jobs"], do: jobs()
   defp command(value, :initial_menu) when value in ["2", "queues"], do: queues()
   defp command(value, :initial_menu) when value in ["3", "profile"], do: profile()
@@ -542,11 +566,10 @@ defmodule Oban.Console.Interactive do
     do: jobs()
 
   defp command(value, :jobs) when value in ["2", "filter"], do: filter_jobs()
-  defp command(value, :jobs) when value in ["3", "opts"], do: filter_jobs_opts()
-  defp command(value, :jobs) when value in ["4", "debug"], do: debug_jobs() && jobs([], false)
-  defp command(value, :jobs) when value in ["5", "retry"], do: retry_jobs() && jobs()
-  defp command(value, :jobs) when value in ["6", "cancel"], do: cancel_jobs() && jobs()
-  defp command(value, :jobs) when value in ["7", "clean"], do: clean_jobs() && jobs()
+  defp command(value, :jobs) when value in ["3", "debug"], do: debug_jobs() && jobs([], false)
+  defp command(value, :jobs) when value in ["4", "retry"], do: retry_jobs() && jobs()
+  defp command(value, :jobs) when value in ["5", "cancel"], do: cancel_jobs() && jobs()
+  defp command(value, :jobs) when value in ["6", "clean"], do: clean_jobs() && jobs()
 
   defp command(value, :debug_jobs) when value in ["0", "return", "", []], do: jobs()
   defp command(value, :debug_jobs), do: Jobs.debug_jobs(value)
@@ -557,21 +580,16 @@ defmodule Oban.Console.Interactive do
   defp command(value, :cancel_jobs) when value in ["0", "return", "", []], do: jobs()
   defp command(value, :cancel_jobs), do: Jobs.cancel_jobs(value)
 
-  defp command(value, :filter_jobs_opts) when value in ["0", "return", ""], do: jobs()
-
   defp command(value, :filter_jobs_opts) do
     case eval_opts(value) do
-      {:ok, opts} ->
-        jobs(opts)
-
-      {:error, error} ->
-        Printer.red(error) |> IO.puts()
-
-        jobs([], false)
+      {:ok, opts} -> jobs(opts)
+      {:error, _} -> goodbye()
     end
   end
 
   defp command(value, _) when value in ["0", "return", ""], do: initial_menu()
+
+  defp command(value, :jobs), do: command(value, :filter_jobs_opts)
 
   defp command(value, :profile),
     do: System.put_env("OBAN_CONSOLE_PROFILE", value) && initial_menu()
@@ -586,17 +604,50 @@ defmodule Oban.Console.Interactive do
     _ -> {:error, "Not valid list"}
   end
 
+  defp print_list(list), do: Enum.map_join(list, ", ", &to_string/1)
+
   defp filter_jobs() do
-    ids = get_customer_integer_list_input(["Filter", "Job IDs (comma separated): "])
+    previous_selected_opts = Storage.get_last_jobs_opts()
+    previous_listed_ids = Storage.get_last_jobs_ids()
+    previous_selected_ids = Keyword.get(previous_selected_opts, :ids, [])
+    previous_selected_states = Keyword.get(previous_selected_opts, :states, [])
+    previous_selected_queues = Keyword.get(previous_selected_opts, :queues, [])
+    previous_selected_workers = Keyword.get(previous_selected_opts, :workers, [])
 
-    states =
-      get_customer_string_list_input([
-        "Filter",
-        "States (comma separated) (1. available, 2. scheduled, 3. retryable, 4. executing, 5. completed, 6. discarded, 7. cancelled): "
-      ])
+    Printer.break()
 
+    if Enum.any?(previous_listed_ids),
+      do: Printer.title(["Listed IDs", print_list(previous_listed_ids)]) |> IO.puts()
+
+    if Enum.any?(previous_selected_ids),
+      do: Printer.title(["Selected IDs", print_list(previous_listed_ids)]) |> IO.puts()
+
+    Printer.title([
+      "States",
+      "1. available, 2. scheduled, 3. retryable, 4. executing, 5. completed, 6. discarded, 7. cancelled"
+    ])
+    |> IO.puts()
+
+    if Enum.any?(previous_selected_states),
+      do: Printer.title(["Selected States", print_list(previous_selected_states)]) |> IO.puts()
+
+    Printer.title(["Queues", Queues.list() |> Enum.map(fn q -> q.queue end) |> print_list()])
+    |> IO.puts()
+
+    if Enum.any?(previous_selected_queues),
+      do: Printer.title(["Selected Queues", print_list(previous_selected_queues)]) |> IO.puts()
+
+    if Enum.any?(previous_selected_workers),
+      do: Printer.title(["Selected Workers", print_list(previous_selected_workers)]) |> IO.puts()
+
+    Printer.break()
+
+    ids = get_customer_integer_list_input(["Filter", "IDs (comma separated): "])
+    states = get_customer_string_list_input(["Filter", "States (comma separated): "])
     queues = get_customer_string_list_input(["Filter", "Queues (comma separated): "])
-    workers = get_customer_string_list_input(["Filter", "Workers (comma separated): "])
+
+    workers =
+      get_customer_string_list_input(["Filter", "Workers (comma separated, - to exclude): "])
 
     limit =
       ["Filter", "Limit (default 20): "] |> get_customer_integer_list_input() |> List.first()
