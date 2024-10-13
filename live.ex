@@ -187,6 +187,34 @@ defmodule Oban.Console.Storage do
   def set_last_jobs_ids(ids) do
     System.put_env("OBAN_CONSOLE_JOBS_LAST_IDS", ids |> Jason.encode!())
   end
+
+  def set_profile(name, file_path) do
+    with {_, :ok} <- {:dir, file_path |> Path.dirname() |> File.mkdir_p()},
+    {_, {:error, :enoent}} <- {:file, File.read(file_path)},
+
+  else
+    {:dir, {:error, reason}} ->
+      {:error, "Failed to create the directory: #{reason}"}
+
+    {:file, file} ->
+
+
+
+
+  end
+    case File.mkdir_p(path) do
+      :ok ->
+        IO.puts("Diretório criado com sucesso!")
+      {:error, reason} ->
+        IO.puts("Falha ao criar o diretório: #{reason}")
+    end
+
+
+    System.put_env("OBAN_CONSOLE_PROFILE", name)
+    System.put_env("OBAN_CONSOLE_PROFILE_FILE_PATH", file_path)
+
+
+  end
 end
 
 defmodule Oban.Console.Queues do
@@ -472,9 +500,13 @@ defmodule Oban.Console.Interactive do
   defp goodbye(), do: Printer.menu("Goodbye!", [])
 
   defp profile() do
-    ["Profile", "Select/Create your profile", "Name: "]
-    |> Printer.gets()
-    |> command(:profile)
+    name = Printer.gets(["Profile", "Select/Create your profile", "Name: "])
+    file_path = Printer.gets(["File Path", "Profile file path (default: ~/tmp/oban_console/profiles/#{name}): "])
+
+    case Storage.set_profile(name, file_path) do
+      :ok -> Printer.green("Profile set") |> IO.puts()
+      {:error, error} -> Printer.red("Error | #{error}") |> IO.puts()
+    end
   end
 
   defp queues() do
@@ -547,7 +579,7 @@ defmodule Oban.Console.Interactive do
 
   defp command(value, :initial_menu) when value in ["1", "jobs"], do: jobs()
   defp command(value, :initial_menu) when value in ["2", "queues"], do: queues()
-  defp command(value, :initial_menu) when value in ["3", "profile"], do: profile()
+  defp command(value, :initial_menu) when value in ["3", "profile"], do: profile() && initial_menu()
   defp command(value, :initial_menu) when value in ["0", "exit"], do: goodbye()
 
   defp command(value, :queues) when value in ["1", "list", "refresh", "list/refresh", ""],
@@ -581,18 +613,22 @@ defmodule Oban.Console.Interactive do
   defp command(value, :cancel_jobs), do: Jobs.cancel_jobs(value)
 
   defp command(value, :filter_jobs_opts) do
-    case eval_opts(value) do
-      {:ok, opts} -> jobs(opts)
-      {:error, _} -> goodbye()
+    with true <- String.contains?(value, "["),
+         {:ok, opts} <- eval_opts(value) do
+      jobs(opts)
+    else
+      {:error, error} ->
+        Printer.red("Error | Filter not valid") |> IO.puts()
+
+        jobs()
+
+      _ -> goodbye()
     end
   end
 
   defp command(value, _) when value in ["0", "return", ""], do: initial_menu()
 
   defp command(value, :jobs), do: command(value, :filter_jobs_opts)
-
-  defp command(value, :profile),
-    do: System.put_env("OBAN_CONSOLE_PROFILE", value) && initial_menu()
 
   defp command(_, _), do: goodbye()
 
