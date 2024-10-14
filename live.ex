@@ -1,4 +1,139 @@
+defmodule Oban.Console.Config do
+  def oban_configured?() do
+    with {_, true} <- {:installed, Code.ensure_loaded?(Oban)},
+         {_, %Oban.Config{queues: [_ | _]}} <- {:configured, Oban.config()} do
+      :ok
+    else
+      {:installed, false} ->
+        {:error, "Oban is not installed"}
+
+      {:configured, %Oban.Config{queues: []}} ->
+        {:error, "Oban is installed but no queues are configured"}
+
+      {:configured, _} ->
+        {:error, "Oban isn't configured"}
+    end
+  end
+end
+
+defmodule Oban.Console.Storage do
+  def get_last_jobs_opts() do
+    case System.get_env("OBAN_CONSOLE_JOBS_LAST_OPTS") do
+      nil -> []
+      value -> value |> Jason.decode!(keys: :atoms) |> Map.to_list()
+    end
+  end
+
+  def set_last_jobs_opts(opts) do
+    System.put_env("OBAN_CONSOLE_JOBS_LAST_OPTS", opts |> Map.new() |> Jason.encode!())
+  end
+
+  def get_last_jobs_ids() do
+    case System.get_env("OBAN_CONSOLE_JOBS_LAST_IDS") do
+      nil -> []
+      value -> value |> Jason.decode!()
+    end
+  end
+
+  def set_last_jobs_ids(ids) do
+    System.put_env("OBAN_CONSOLE_JOBS_LAST_IDS", ids |> Jason.encode!())
+  end
+
+  defp profile_file_path() do
+    path = "tmp/oban_console"
+    file_name = "profiles.json"
+    file_path = Path.join([path, file_name])
+
+    %{path: path, file_name: file_name, file_path: file_path}
+  end
+
+  def create_profile(nil), do: nil
+  def create_profile(""), do: nil
+
+  def create_profile(name) when is_binary(name) do
+    %{path: path, file_name: file_name, file_path: file_path} = profile_file_path()
+
+    initial_content = %{"jobs" => %{"history" => []}}
+
+    with {_, :ok} <- {:dir, File.mkdir_p(path)},
+         {_, {:error, :enoent}} <- {:read, File.read(file_path)},
+         {_, :ok} <-
+           {:write,
+            append_profile(name, %{"selected" => name, name => initial_content}, file_path, [])} do
+      put_oban_console_profile_env(name)
+
+      :ok
+    else
+      {:dir, {:error, reason}} ->
+        {:error, "Failed to create the directory: #{reason}"}
+
+      {:read, raw_content} ->
+        put_oban_console_profile_env(name)
+
+        profiles = Jason.decode!(content)
+        append_profile(name, initial_content, file_path, profiles)
+
+        :ok
+    end
+  end
+
+  def get_profile() do
+    %{file_path: file_path} = profile_file_path()
+
+    with content when is_binary(content) <- File.read(file_path),
+         %{"selected" => selected} = profiles <- Jason.decode!(content) do
+      put_oban_console_profile_env(selected)
+
+      {selected, Map.get(profiles, selected)}
+    else
+      {:error, :enoent} -> nil
+    end
+  end
+
+  def get_profile_name() do
+    with nil <- get_oban_console_profile(),
+         {selected, _} <- get_profile() do
+      selected
+    else
+      nil -> nil
+      selected -> selected
+    end
+  end
+
+  def add_job_filter_history(filters) do
+    with {selected, } = get_profile()
+
+
+    case set_profile(get_profile_name()) do
+      nil ->
+        :ok
+
+      {:ok, content} ->
+        content.jobs
+        |> Map.put(:history, [filters | content.jobs.history])
+        |> then(fn jobs -> Map.put(content, :jobs, jobs) end)
+
+        :ok
+    end
+  end
+
+  defp append_profile(name, content, file_path, profiles) do
+    profiles =
+      case profiles[String.to_atom(name)] do
+        nil -> Map.merge(profiles, content)
+        existent -> Map.merge(profiles, %{"selected" => name})
+      end
+
+    File.write(file_path, profiles)
+  end
+
+  defp get_oban_console_profile_env(), do: System.get_env("OBAN_CONSOLE_PROFILE")
+  defp put_oban_console_profile_env(value), do: System.put_env("OBAN_CONSOLE_PROFILE", value)
+end
+
 defmodule Oban.Console.View.Printer do
+  alias Oban.Console.Storage
+
   @spec line(integer()) :: :ok
   def line(size \\ 80), do: separator(size) |> IO.puts()
 
@@ -6,9 +141,9 @@ defmodule Oban.Console.View.Printer do
   def separator(size \\ 80), do: String.pad_trailing("", size, "-")
 
   def menu(label, items) do
-    IO.puts("")
+    break()
 
-    profile = System.get_env("OBAN_CONSOLE_PROFILE")
+    profile = get_profile()
 
     if profile != nil && profile != "" do
       IO.write("[#{header_color(profile)}] ")
@@ -147,76 +282,6 @@ defmodule Oban.Console.View.Table do
   end
 end
 
-defmodule Oban.Console.Config do
-  def oban_configured?() do
-    with {_, true} <- {:installed, Code.ensure_loaded?(Oban)},
-         {_, %Oban.Config{queues: [_ | _]}} <- {:configured, Oban.config()} do
-      :ok
-    else
-      {:installed, false} ->
-        {:error, "Oban is not installed"}
-
-      {:configured, %Oban.Config{queues: []}} ->
-        {:error, "Oban is installed but no queues are configured"}
-
-      {:configured, _} ->
-        {:error, "Oban isn't configured"}
-    end
-  end
-end
-
-defmodule Oban.Console.Storage do
-  def get_last_jobs_opts() do
-    case System.get_env("OBAN_CONSOLE_JOBS_LAST_OPTS") do
-      nil -> []
-      value -> value |> Jason.decode!(keys: :atoms) |> Map.to_list()
-    end
-  end
-
-  def set_last_jobs_opts(opts) do
-    System.put_env("OBAN_CONSOLE_JOBS_LAST_OPTS", opts |> Map.new() |> Jason.encode!())
-  end
-
-  def get_last_jobs_ids() do
-    case System.get_env("OBAN_CONSOLE_JOBS_LAST_IDS") do
-      nil -> []
-      value -> value |> Jason.decode!()
-    end
-  end
-
-  def set_last_jobs_ids(ids) do
-    System.put_env("OBAN_CONSOLE_JOBS_LAST_IDS", ids |> Jason.encode!())
-  end
-
-  def set_profile(name, file_path) do
-    with {_, :ok} <- {:dir, file_path |> Path.dirname() |> File.mkdir_p()},
-    {_, {:error, :enoent}} <- {:file, File.read(file_path)},
-
-  else
-    {:dir, {:error, reason}} ->
-      {:error, "Failed to create the directory: #{reason}"}
-
-    {:file, file} ->
-
-
-
-
-  end
-    case File.mkdir_p(path) do
-      :ok ->
-        IO.puts("Diretório criado com sucesso!")
-      {:error, reason} ->
-        IO.puts("Falha ao criar o diretório: #{reason}")
-    end
-
-
-    System.put_env("OBAN_CONSOLE_PROFILE", name)
-    System.put_env("OBAN_CONSOLE_PROFILE_FILE_PATH", file_path)
-
-
-  end
-end
-
 defmodule Oban.Console.Queues do
   alias Oban.Console.View.Printer
   alias Oban.Console.View.Table
@@ -306,12 +371,12 @@ defmodule Oban.Console.Jobs do
     opts = Keyword.put(opts, :states, converted_states)
     opts = Keyword.put(opts, :limit, limit)
 
-    Storage.set_last_jobs_opts(opts)
-
     response = list(opts)
-
     ids = Enum.map(response, fn job -> job.id end)
+
     Storage.set_last_jobs_ids(ids)
+    Storage.set_last_jobs_opts(opts)
+    Storage.add_job_filter_history(opts)
 
     filters =
       Enum.reject(opts, fn
@@ -501,10 +566,9 @@ defmodule Oban.Console.Interactive do
 
   defp profile() do
     name = Printer.gets(["Profile", "Select/Create your profile", "Name: "])
-    file_path = Printer.gets(["File Path", "Profile file path (default: ~/tmp/oban_console/profiles/#{name}): "])
 
-    case Storage.set_profile(name, file_path) do
-      :ok -> Printer.green("Profile set") |> IO.puts()
+    case Storage.create_profile(name) do
+      {:ok, _} -> Printer.green("Profile set") |> IO.puts()
       {:error, error} -> Printer.red("Error | #{error}") |> IO.puts()
     end
   end
@@ -549,6 +613,7 @@ defmodule Oban.Console.Interactive do
       {4, "Retry"},
       {5, "Cancel"},
       {6, "Clean"},
+      {7, "History"},
       {0, "Return"}
     ])
 
@@ -577,9 +642,19 @@ defmodule Oban.Console.Interactive do
     |> command(:retry_jobs)
   end
 
+  defp job_filters_history() do
+    case Storage.get_profile() do
+      {:ok, content} -> Enum.each(content.jobs.history, &IO.puts/1)
+      _ -> nil
+    end
+  end
+
   defp command(value, :initial_menu) when value in ["1", "jobs"], do: jobs()
   defp command(value, :initial_menu) when value in ["2", "queues"], do: queues()
-  defp command(value, :initial_menu) when value in ["3", "profile"], do: profile() && initial_menu()
+
+  defp command(value, :initial_menu) when value in ["3", "profile"],
+    do: profile() && initial_menu()
+
   defp command(value, :initial_menu) when value in ["0", "exit"], do: goodbye()
 
   defp command(value, :queues) when value in ["1", "list", "refresh", "list/refresh", ""],
@@ -603,6 +678,9 @@ defmodule Oban.Console.Interactive do
   defp command(value, :jobs) when value in ["5", "cancel"], do: cancel_jobs() && jobs()
   defp command(value, :jobs) when value in ["6", "clean"], do: clean_jobs() && jobs()
 
+  defp command(value, :jobs) when value in ["7", "history"],
+    do: job_filters_history() || jobs([], false)
+
   defp command(value, :debug_jobs) when value in ["0", "return", "", []], do: jobs()
   defp command(value, :debug_jobs), do: Jobs.debug_jobs(value)
 
@@ -622,7 +700,8 @@ defmodule Oban.Console.Interactive do
 
         jobs()
 
-      _ -> goodbye()
+      _ ->
+        goodbye()
     end
   end
 
