@@ -21,6 +21,7 @@ defmodule Oban.Console.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
+      {:mimic, "~> 1.7", only: [:dev, :test], runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:oban, "~> 2.17", optional: true},
       {:jason, "~> 1.4"}

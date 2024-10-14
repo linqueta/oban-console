@@ -47,51 +47,44 @@ defmodule Oban.Console.Storage do
     %{path: path, file_name: file_name, file_path: file_path}
   end
 
-  def create_profile(nil), do: nil
-  def create_profile(""), do: nil
+  def find_or_create_profile(nil, _), do: nil
+  def find_or_create_profile("", _), do: nil
 
-  def create_profile(name) when is_binary(name) do
-    %{path: path, file_name: file_name, file_path: file_path} = profile_file_path()
-
-    initial_content = %{"jobs" => %{"history" => []}}
-
-    with {_, :ok} <- {:dir, File.mkdir_p(path)},
-         {_, {:error, :enoent}} <- {:read, File.read(file_path)},
-         {_, :ok} <-
-           {:write,
-            append_profile(name, %{"selected" => name, name => initial_content}, file_path, [])} do
+  def find_or_create_profile(name, list) when is_binary(name) do
+    with nil <- Enum.find(list, fn {i, p} -> name in [i, p] end),
+         {:ok, _content} <- save_profile(name, %{"filters" => []}, false) do
       put_oban_console_profile_env(name)
-
-      :ok
     else
-      {:dir, {:error, reason}} ->
-        {:error, "Failed to create the directory: #{reason}"}
+      {_, selected_profile} ->
+        put_oban_console_profile_env(selected_profile)
 
-      {:read, raw_content} ->
-        put_oban_console_profile_env(name)
+      error ->
+        error
+    end
+  end
 
-        profiles = Jason.decode!(content)
-        append_profile(name, initial_content, file_path, profiles)
+  def get_profiles() do
+    %{file_path: file_path} = profile_file_path()
 
-        :ok
+    case File.read(file_path) do
+      {:ok, content} -> Jason.decode!(content)
+      {:error, :enoent} -> nil
     end
   end
 
   def get_profile() do
-    %{file_path: file_path} = profile_file_path()
-
-    with content when is_binary(content) <- File.read(file_path),
+    with %{} = content <- get_profiles(),
          %{"selected" => selected} = profiles <- Jason.decode!(content) do
       put_oban_console_profile_env(selected)
 
       {selected, Map.get(profiles, selected)}
     else
-      {:error, :enoent} -> nil
+      nil -> nil
     end
   end
 
   def get_profile_name() do
-    with nil <- get_oban_console_profile(),
+    with nil <- get_oban_console_profile_env(),
          {selected, _} <- get_profile() do
       selected
     else
@@ -101,31 +94,39 @@ defmodule Oban.Console.Storage do
   end
 
   def add_job_filter_history(filters) do
-    with {selected, } = get_profile()
+    with {selected, content} <- get_profile() do
+      data = %{"filters" => [filters | Map.get(content, "filters")]}
 
-
-    case set_profile(get_profile_name()) do
-      nil ->
-        :ok
-
-      {:ok, content} ->
-        content.jobs
-        |> Map.put(:history, [filters | content.jobs.history])
-        |> then(fn jobs -> Map.put(content, :jobs, jobs) end)
-
-        :ok
+      save_profile(selected, data)
     end
   end
 
-  defp append_profile(name, content, file_path, profiles) do
-    profiles =
-      case profiles[String.to_atom(name)] do
-        nil -> Map.merge(profiles, content)
-        existent -> Map.merge(profiles, %{"selected" => name})
-      end
+  defp save_profile(name, content, update \\ true) do
+    %{path: path, file_path: file_path} = profile_file_path()
 
-    File.write(file_path, profiles)
+    with %{} = profiles <- get_profiles(),
+         true <- update || is_nil(Map.get(profiles, name)) do
+      content = Map.merge(profiles, %{"selected" => name, name => content})
+
+      write_profile(file_path, content)
+
+      {:ok, content}
+    else
+      false ->
+        {:ok, Map.get(get_profiles(), name)}
+
+      nil ->
+        File.mkdir_p(path)
+        write_profile(file_path, %{})
+
+        save_profile(name, content)
+
+      error ->
+        {:error, error}
+    end
   end
+
+  defp write_profile(file_path, content), do: File.write(file_path, Jason.encode!(content))
 
   defp get_oban_console_profile_env(), do: System.get_env("OBAN_CONSOLE_PROFILE")
   defp put_oban_console_profile_env(value), do: System.put_env("OBAN_CONSOLE_PROFILE", value)
@@ -143,7 +144,7 @@ defmodule Oban.Console.View.Printer do
   def menu(label, items) do
     break()
 
-    profile = get_profile()
+    profile = Storage.get_profile_name()
 
     if profile != nil && profile != "" do
       IO.write("[#{header_color(profile)}] ")
@@ -303,7 +304,7 @@ defmodule Oban.Console.Queues do
   def pause_queues([_ | _] = names), do: Enum.each(names, &pause_queues/1)
   def pause_queues([]), do: :ok
 
-  def pause_queues(name) do
+  def pause_queues(name) when is_binary(name) do
     Oban.pause_queue(queue: name)
     ["Paused", name] |> Printer.title() |> IO.puts()
   end
@@ -315,7 +316,7 @@ defmodule Oban.Console.Queues do
   def resume_queues([_ | _] = names), do: Enum.each(names, &resume_queues/1)
   def resume_queues([]), do: :ok
 
-  def resume_queues(name) do
+  def resume_queues(name) when is_binary(name)  do
     Oban.resume_queue(queue: name)
     ["Resumed", name] |> Printer.title() |> IO.puts()
   end
@@ -565,10 +566,27 @@ defmodule Oban.Console.Interactive do
   defp goodbye(), do: Printer.menu("Goodbye!", [])
 
   defp profile() do
-    name = Printer.gets(["Profile", "Select/Create your profile", "Name: "])
+    list =
+      with %{} = profiles <- Storage.get_profiles() do
+        list =
+          profiles
+          |> Enum.map(fn {p, _} -> p != "selected" end)
+          |> Enum.reject(&is_nil/1)
+          |> Enum.sort()
+          |> Enum.with_index()
+          |> Enum.map(fn {{k, _}, i} -> {i + 1, k} end)
 
-    case Storage.create_profile(name) do
-      {:ok, _} -> Printer.green("Profile set") |> IO.puts()
+        if Enum.any?(list), do: Printer.menu("Profiles", list)
+
+        list
+      else
+        _ -> []
+      end
+
+    name = Printer.gets(["Select/Create your profile", "Number/Name: "])
+
+    case Storage.find_or_create_profile(name, list) do
+      :ok -> Printer.green("Profile set") |> IO.puts()
       {:error, error} -> Printer.red("Error | #{error}") |> IO.puts()
     end
   end
@@ -695,7 +713,7 @@ defmodule Oban.Console.Interactive do
          {:ok, opts} <- eval_opts(value) do
       jobs(opts)
     else
-      {:error, error} ->
+      {:error, _error} ->
         Printer.red("Error | Filter not valid") |> IO.puts()
 
         jobs()

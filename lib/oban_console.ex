@@ -12,6 +12,6 @@ defmodule Oban.Console do
       :world
 
   """
-  def list_queues(repo) do
+  def list_queues() do
   end
 end
