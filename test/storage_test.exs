@@ -50,4 +50,46 @@ defmodule Oban.Console.StorageTest do
       assert ^new_opts = Storage.get_last_jobs_opts()
     end
   end
+
+  describe "get_last_jobs_ids/0" do
+    setup do
+      System.put_env("OBAN_CONSOLE_JOBS_LAST_IDS", "")
+    end
+
+    test "returns empty without last ids saved" do
+      assert [] = Storage.get_last_jobs_ids()
+    end
+
+    test "returns last ids saved" do
+      ids = [1, 2, 3]
+
+      Storage.set_last_jobs_ids(ids)
+
+      assert ^ids = Storage.get_last_jobs_ids()
+    end
+  end
+
+  describe "set_last_jobs_ids/1" do
+    setup do
+      System.put_env("OBAN_CONSOLE_JOBS_LAST_IDS", "")
+    end
+
+    test "saves ids" do
+      ids = [1, 2, 3]
+
+      Storage.set_last_jobs_ids(ids)
+
+      assert ^ids = Storage.get_last_jobs_ids()
+    end
+
+    test "updates ids" do
+      ids = [1, 2, 3]
+      new_ids = [4, 5, 6]
+
+      Storage.set_last_jobs_ids(ids)
+      Storage.set_last_jobs_ids(new_ids)
+
+      assert ^new_ids = Storage.get_last_jobs_ids()
+    end
+  end
 end
