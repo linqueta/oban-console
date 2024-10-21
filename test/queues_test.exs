@@ -6,15 +6,15 @@ defmodule Oban.Console.QueuesTest do
 
   describe "list/0" do
     test "return queues fields" do
-      Mimic.stub(Repo, :queues, fn -> ObanConfigMock.queues() end)
+      Mimic.stub(Repo, :queues, fn -> ObanMock.queues() end)
 
-      assert ObanConfigMock.queues() == Queues.list()
+      assert ObanMock.queues() == Queues.list()
     end
   end
 
   describe "show_list/0" do
     test "shows the list" do
-      Mimic.stub(Repo, :queues, fn -> ObanConfigMock.queues() end)
+      Mimic.stub(Repo, :queues, fn -> ObanMock.queues() end)
 
       assert :ok = Queues.show_list()
     end

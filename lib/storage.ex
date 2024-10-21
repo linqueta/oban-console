@@ -2,6 +2,7 @@ defmodule Oban.Console.Storage do
   def get_last_jobs_opts() do
     case get_env("OBAN_CONSOLE_JOBS_LAST_OPTS") do
       nil -> []
+      "" -> []
       value -> value |> Jason.decode!(keys: :atoms) |> Map.to_list()
     end
   end
@@ -13,6 +14,7 @@ defmodule Oban.Console.Storage do
   def get_last_jobs_ids() do
     case get_env("OBAN_CONSOLE_JOBS_LAST_IDS") do
       nil -> []
+      "" -> []
       value -> value |> Jason.decode!()
     end
   end
@@ -39,6 +41,8 @@ defmodule Oban.Console.Storage do
 
   def delete_profile_file() do
     %{file_path: file_path} = profile_file_path()
+
+    put_oban_console_profile_env("")
 
     File.rm(file_path)
   end
@@ -70,6 +74,7 @@ defmodule Oban.Console.Storage do
       selected
     else
       nil -> nil
+      "" -> nil
       selected -> selected
     end
   end
