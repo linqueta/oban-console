@@ -21,14 +21,6 @@ defmodule Oban.Console.Storage do
     System.put_env("OBAN_CONSOLE_JOBS_LAST_IDS", ids |> Jason.encode!())
   end
 
-  defp profile_file_path() do
-    path = "tmp/oban_console"
-    file_name = "profiles.json"
-    file_path = Path.join([path, file_name])
-
-    %{path: path, file_name: file_name, file_path: file_path}
-  end
-
   def find_or_create_profile(nil, _), do: nil
   def find_or_create_profile("", _), do: nil
 
@@ -45,6 +37,12 @@ defmodule Oban.Console.Storage do
     end
   end
 
+  def delete_profile_file() do
+    %{file_path: file_path} = profile_file_path()
+
+    File.rm(file_path)
+  end
+
   def get_profiles() do
     %{file_path: file_path} = profile_file_path()
 
@@ -55,13 +53,14 @@ defmodule Oban.Console.Storage do
   end
 
   def get_profile() do
-    with %{} = content <- get_profiles(),
-         %{"selected" => selected} = profiles <- Jason.decode!(content) do
-      put_oban_console_profile_env(selected)
+    case get_profiles() do
+      %{"selected" => selected} = profiles ->
+        put_oban_console_profile_env(selected)
 
-      {selected, Map.get(profiles, selected)}
-    else
-      nil -> nil
+        {selected, Map.get(profiles, selected)}
+
+      nil ->
+        nil
     end
   end
 
@@ -75,12 +74,26 @@ defmodule Oban.Console.Storage do
     end
   end
 
+  def add_job_filter_history([_ | _] = filters), do: add_job_filter_history(Map.new(filters))
+
   def add_job_filter_history(filters) do
     with {selected, content} <- get_profile() do
       data = %{"filters" => [filters | Map.get(content, "filters")]}
 
       save_profile(selected, data)
+
+      :ok
+    else
+      _ -> :ok
     end
+  end
+
+  defp profile_file_path() do
+    path = "tmp/oban_console"
+    file_name = "profiles.json"
+    file_path = Path.join([path, file_name])
+
+    %{path: path, file_name: file_name, file_path: file_path}
   end
 
   defp save_profile(name, content, update \\ true) do
