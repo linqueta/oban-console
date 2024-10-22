@@ -72,45 +72,47 @@ defmodule Oban.Console.Jobs do
   def debug_jobs([]), do: :ok
 
   def debug_jobs(job_id) when is_integer(job_id) do
-    Oban
-    |> Oban.config()
-    |> Oban.Repo.get(Oban.Job, job_id)
-    |> then(fn
+    case Repo.get_job(job_id) do
       nil ->
-        ["Job", job_id, "Job not found"] |> Printer.title() |> IO.puts()
+        ["Job", job_id, "Job not found"] |> Printer.error() |> IO.puts()
 
       job ->
+        Printer.break()
         ["Job", job_id] |> Printer.title() |> IO.puts()
-        IO.puts(inspect(job))
-    end)
+
+        # credo:disable-for-next-line
+        IO.inspect(job)
+
+        :ok
+    end
   end
 
   def debug_jobs(job_id) do
-    ["Debug", job_id, "Job ID is not valid"] |> Printer.title() |> IO.puts()
+    ["Debug", job_id, "Job ID is not valid"] |> Printer.error() |> IO.puts()
   end
 
   def retry_jobs([_ | _] = jobs_ids), do: Enum.each(jobs_ids, &retry_jobs/1)
   def retry_jobs([]), do: :ok
 
   def retry_jobs(job_id) when is_integer(job_id) do
-    Oban.retry_job(job_id)
+    Repo.retry_job(job_id)
     ["Retried", job_id] |> Printer.title() |> IO.puts()
   end
 
   def retry_jobs(job_id) do
-    ["Retry", job_id, "Job ID is not valid"] |> Printer.title() |> IO.puts()
+    ["Retry", job_id, "Job ID is not valid"] |> Printer.error() |> IO.puts()
   end
 
   def cancel_jobs([_ | _] = jobs_ids), do: Enum.each(jobs_ids, &cancel_jobs/1)
   def cancel_jobs([]), do: :ok
 
   def cancel_jobs(job_id) when is_integer(job_id) do
-    Oban.cancel_job(job_id)
+    Repo.cancel_job(job_id)
     ["Cancelled", job_id] |> Printer.title() |> IO.puts()
   end
 
   def cancel_jobs(job_id) do
-    ["Cancel", job_id, "Job ID is not valid"] |> Printer.title() |> IO.puts()
+    ["Cancel", job_id, "Job ID is not valid"] |> Printer.error() |> IO.puts()
   end
 
   defp ids_listed_before(opts) do

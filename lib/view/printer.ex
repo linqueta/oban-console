@@ -26,6 +26,12 @@ defmodule Oban.Console.View.Printer do
   @spec break() :: :ok
   def break, do: IO.puts("")
 
+  def error([header | remaining]) do
+    [red(header), remaining]
+    |> List.flatten()
+    |> Enum.join(" | ")
+  end
+
   def title([header | remaining]) do
     [header_color(header), remaining]
     |> List.flatten()

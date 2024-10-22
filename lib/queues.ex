@@ -20,7 +20,7 @@ defmodule Oban.Console.Queues do
   end
 
   def pause_queues(name) do
-    ["Pause", name, "Queue name is not valid"] |> Printer.title() |> IO.puts()
+    ["Pause", name, "Queue name is not valid"] |> Printer.error() |> IO.puts()
   end
 
   def resume_queues([_ | _] = names), do: Enum.each(names, &resume_queues/1)
@@ -32,6 +32,6 @@ defmodule Oban.Console.Queues do
   end
 
   def resume_queues(name) do
-    ["Resume", name, "Queue name is not valid"] |> Printer.title() |> IO.puts()
+    ["Resume", name, "Queue name is not valid"] |> Printer.error() |> IO.puts()
   end
 end

@@ -21,4 +21,8 @@ defmodule Oban.Console.Repo do
     |> Oban.config()
     |> Oban.Repo.get(Oban.Job, job_id)
   end
+
+  def cancel_job(job_id), do: Oban.cancel_job(job_id)
+
+  def retry_job(job_id), do: Oban.retry_job(job_id)
 end
