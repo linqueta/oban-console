@@ -36,15 +36,19 @@ defmodule BuildLiveFile do
   def sort_modules(sorted, [], []), do: sorted
 
   def read_files(sorted_files) do
-    Enum.map(sorted_files, fn file -> File.read(file) end)
+    Enum.map(sorted_files, fn file -> File.read!(file) end)
   end
 
-  def write_files(files_content) do
-    File.write("live.exs", Enum.join(files_content, "\n"))
+  def write_files(files_content, commands) do
+    File.write("live.exs", Enum.join(files_content ++ commands, "\n"))
   end
 end
 
 {:ok, spec_file} = File.read(".live.json")
-spec_decoded = Jason.decode!(spec_file, keys: :atoms)
 
-BuildLiveFile.sort_modules(spec_decoded)
+decoded = Jason.decode!(spec_file, keys: :atoms)
+
+decoded.files
+|> BuildLiveFile.sort_modules()
+|> BuildLiveFile.read_files()
+|> BuildLiveFile.write_files(decoded.commands)

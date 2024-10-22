@@ -37,7 +37,7 @@ defmodule Oban.Console.Jobs do
     response = list(opts)
     ids = Enum.map(response, fn job -> job.id end)
 
-    if Storage.get_last_jobs_opts() != opts do
+    if Enum.sort(Storage.get_last_jobs_opts()) != Enum.sort(opts) do
       Storage.add_job_filter_history(opts)
     end
 

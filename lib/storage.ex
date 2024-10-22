@@ -28,10 +28,13 @@ defmodule Oban.Console.Storage do
 
   def find_or_create_profile(name, list) when is_binary(name) do
     with nil <- Enum.find(list, fn {i, p} -> name in [i, p] end),
-         {:ok, _content} <- save_profile(name, %{"filters" => []}, false) do
+         {:ok, _content} <- save_profile(name, %{"filters" => []}) do
       put_oban_console_profile_env(name)
     else
       {_, selected_profile} ->
+        profile = Map.get(Storage.get_profiles(), selected_profile)
+
+        save_profile(name, profile)
         put_oban_console_profile_env(selected_profile)
 
       error ->
@@ -101,12 +104,12 @@ defmodule Oban.Console.Storage do
     %{path: path, file_name: file_name, file_path: file_path}
   end
 
-  defp save_profile(name, content, update \\ true) do
+  defp save_profile(name, content) do
     %{path: path, file_path: file_path} = profile_file_path()
 
-    with %{} = profiles <- get_profiles(),
-         true <- update || is_nil(Map.get(profiles, name)) do
-      content = Map.merge(profiles, %{"selected" => name, name => content})
+    with %{} = profiles <- get_profiles() do
+      change = %{"selected" => name, name => content}
+      content = Map.merge(profiles, change)
 
       write_profile(file_path, content)
 

@@ -28,7 +28,7 @@ defmodule Oban.Console.Storage do
 
   def find_or_create_profile(name, list) when is_binary(name) do
     with nil <- Enum.find(list, fn {i, p} -> name in [i, p] end),
-         {:ok, _content} <- save_profile(name, %{"filters" => []}, false) do
+         {:ok, _content} <- save_profile(name, %{"filters" => []}) do
       put_oban_console_profile_env(name)
     else
       {_, selected_profile} ->
@@ -101,12 +101,17 @@ defmodule Oban.Console.Storage do
     %{path: path, file_name: file_name, file_path: file_path}
   end
 
-  defp save_profile(name, content, update \\ true) do
+  defp save_profile(name, content) do
     %{path: path, file_path: file_path} = profile_file_path()
 
-    with %{} = profiles <- get_profiles(),
-         true <- update || is_nil(Map.get(profiles, name)) do
-      content = Map.merge(profiles, %{"selected" => name, name => content})
+    with %{} = profiles <- get_profiles() do
+      change =
+        case Map.get(profiles, name) do
+          nil -> %{"selected" => name, name => content}
+          _ -> %{"selected" => name}
+        end
+
+      content = Map.merge(profiles, change)
 
       write_profile(file_path, content)
 
@@ -383,7 +388,7 @@ defmodule Oban.Console.Jobs do
     response = list(opts)
     ids = Enum.map(response, fn job -> job.id end)
 
-    if Storage.get_last_jobs_opts() != opts do
+    if Enum.sort(Storage.get_last_jobs_opts()) != Enum.sort(opts) do
       Storage.add_job_filter_history(opts)
     end
 
@@ -625,19 +630,17 @@ defmodule Oban.Console.Interactive do
   defp profile() do
     list =
       with %{} = profiles <- Storage.get_profiles() do
-        list =
+        options =
           profiles
-          |> Enum.map(fn {p, _} -> p != "selected" end)
-          |> Enum.reject(&is_nil/1)
-          |> Enum.sort()
+          |> Enum.filter(fn {p, _} -> p != "selected" end)
           |> Enum.with_index()
-          |> Enum.map(fn {{k, _}, i} -> {i + 1, k} end)
+          |> Enum.map(fn {{k, _}, i} -> {to_string(i + 1), k} end)
 
-        if Enum.any?(list), do: Printer.menu("Profiles", list)
+        Printer.menu("Profiles", options)
 
-        list
+        options
       else
-        _ -> []
+        nil -> []
       end
 
     name = Printer.gets(["Select/Create your profile", "Number/Name: "])
@@ -719,8 +722,16 @@ defmodule Oban.Console.Interactive do
 
   defp job_filters_history() do
     case Storage.get_profile() do
-      {:ok, content} -> Enum.each(content.jobs.history, &IO.puts/1)
-      _ -> nil
+      {_, %{"filters" => filters}} ->
+        filters
+        |> Enum.with_index()
+        |> Enum.map(fn {f, i} -> {i, inspect(f)} end)
+        |> then(fn list -> Printer.menu("Filters History", list) end)
+
+        :ok
+
+      _ ->
+        :ok
     end
   end
 
@@ -754,7 +765,7 @@ defmodule Oban.Console.Interactive do
   defp command(value, :jobs) when value in ["6", "clean"], do: clean_jobs() && jobs()
 
   defp command(value, :jobs) when value in ["7", "history"],
-    do: job_filters_history() || jobs([], false)
+    do: job_filters_history() && jobs([], false)
 
   defp command(value, :debug_jobs) when value in ["0", "return", "", []], do: jobs()
   defp command(value, :debug_jobs), do: Jobs.debug_jobs(value)
@@ -889,3 +900,5 @@ defmodule Oban.Console do
     end
   end
 end
+
+Oban.Console.interactive()
