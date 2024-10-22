@@ -1,6 +1,7 @@
 defmodule ObanMock do
   import Factory
 
+  @spec queues() :: [map()]
   def queues do
     [
       build(:queue, queue: "default", paused: true, local_limit: 10),
@@ -9,6 +10,7 @@ defmodule ObanMock do
     ]
   end
 
+  @spec jobs() :: [Oban.Job.t()]
   def jobs do
     [:id, :worker, :state, :queue, :attempt, :inserted_at, :attempted_at, :scheduled_at]
 

@@ -1,10 +1,12 @@
 defmodule Factory do
   use ExMachina.Ecto
 
+  @spec queue_factory(map()) :: Map.t()
   def queue_factory(attrs) do
     Map.new(attrs)
   end
 
+  @spec job_factory(map()) :: Oban.Job.t()
   def job_factory(attrs) do
     %Oban.Job{
       state: "available",

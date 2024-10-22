@@ -1,5 +1,6 @@
 defmodule Oban.Console.Config do
-  def oban_configured?() do
+  @spec oban_configured?() :: :ok | {:error, String.t()}
+  def oban_configured? do
     with {_, true} <- {:installed, Code.ensure_loaded?(Oban)},
          {_, %Oban.Config{queues: [_ | _]}} <- {:configured, Oban.config()} do
       :ok

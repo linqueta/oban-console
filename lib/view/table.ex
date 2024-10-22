@@ -1,6 +1,7 @@
 defmodule Oban.Console.View.Table do
   alias Oban.Console.View.Printer
 
+  @spec show([map()], [atom()], String.t()) :: :ok
   def show([], _, title) do
     Printer.break()
 

@@ -1,16 +1,19 @@
 defmodule Oban.Console.Queues do
+  alias Oban.Console.Repo
   alias Oban.Console.View.Printer
   alias Oban.Console.View.Table
-  alias Oban.Console.Repo
 
-  def list(), do: Repo.queues()
+  @spec list() :: [Oban.Queue.t()]
+  def list, do: Repo.queues()
 
-  def show_list() do
+  @spec show_list() :: :ok
+  def show_list do
     headers = [:queue, :paused, :local_limit]
 
     Table.show(list(), headers, nil)
   end
 
+  @spec pause_queues([String.t()]) :: :ok
   def pause_queues([_ | _] = names), do: Enum.each(names, &pause_queues/1)
   def pause_queues([]), do: :ok
 
@@ -23,6 +26,7 @@ defmodule Oban.Console.Queues do
     ["Pause", name, "Queue name is not valid"] |> Printer.error() |> IO.puts()
   end
 
+  @spec resume_queues([String.t()]) :: :ok
   def resume_queues([_ | _] = names), do: Enum.each(names, &resume_queues/1)
   def resume_queues([]), do: :ok
 

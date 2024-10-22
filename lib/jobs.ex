@@ -1,4 +1,8 @@
 defmodule Oban.Console.Jobs do
+  import Ecto.Query
+
+  alias Oban.Console.Repo
+  alias Oban.Console.Storage
   alias Oban.Console.View.Printer
   alias Oban.Console.View.Table
 
@@ -15,13 +19,10 @@ defmodule Oban.Console.Jobs do
   @in_progress_states ~w[available scheduled retryable executing]
   @failed_states ~w[cancelled discarded]
 
-  import Ecto.Query
-
-  alias Oban.Console.Storage
-  alias Oban.Console.Repo
-
+  @spec list([Keyword.t()]) :: [Oban.Job.t()]
   def list(opts \\ []), do: Repo.all(list_query(opts))
 
+  @spec show_list([Keyword.t()]) :: :ok
   def show_list(opts \\ []) do
     headers = [:id, :worker, :state, :queue, :attempt, :inserted_at, :attempted_at, :scheduled_at]
     opts = if opts == [], do: Storage.get_last_jobs_opts(), else: opts
@@ -66,8 +67,10 @@ defmodule Oban.Console.Jobs do
       show_list()
   end
 
-  def clean_storage(), do: Storage.set_last_jobs_opts([])
+  @spec clean_storage() :: :ok
+  def clean_storage, do: Storage.set_last_jobs_opts([])
 
+  @spec debug_jobs([integer() | [integer()]]) :: :ok
   def debug_jobs([_ | _] = jobs_ids), do: Enum.each(jobs_ids, &debug_jobs/1)
   def debug_jobs([]), do: :ok
 
@@ -91,6 +94,7 @@ defmodule Oban.Console.Jobs do
     ["Debug", job_id, "Job ID is not valid"] |> Printer.error() |> IO.puts()
   end
 
+  @spec retry_jobs([integer() | [integer()]]) :: :ok
   def retry_jobs([_ | _] = jobs_ids), do: Enum.each(jobs_ids, &retry_jobs/1)
   def retry_jobs([]), do: :ok
 
@@ -103,6 +107,7 @@ defmodule Oban.Console.Jobs do
     ["Retry", job_id, "Job ID is not valid"] |> Printer.error() |> IO.puts()
   end
 
+  @spec cancel_jobs([integer() | [integer()]]) :: :ok
   def cancel_jobs([_ | _] = jobs_ids), do: Enum.each(jobs_ids, &cancel_jobs/1)
   def cancel_jobs([]), do: :ok
 

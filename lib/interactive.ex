@@ -4,11 +4,13 @@ defmodule Oban.Console.Interactive do
   alias Oban.Console.Storage
   alias Oban.Console.View.Printer
 
-  def start() do
+  @spec start() :: :ok
+  def start do
     initial_menu()
   end
 
-  defp initial_menu() do
+  @spec initial_menu() :: :ok
+  defp initial_menu do
     Printer.menu("Menu:", [
       {1, "Jobs"},
       {2, "Queues"},
@@ -21,22 +23,26 @@ defmodule Oban.Console.Interactive do
     |> command(:initial_menu)
   end
 
-  defp goodbye(), do: Printer.menu("Goodbye!", [])
+  @spec goodbye() :: :ok
+  defp goodbye, do: Printer.menu("Goodbye!", [])
 
-  defp profile() do
+  @spec profile() :: :ok
+  defp profile do
     list =
-      with %{} = profiles <- Storage.get_profiles() do
-        options =
-          profiles
-          |> Enum.filter(fn {p, _} -> p != "selected" end)
-          |> Enum.with_index()
-          |> Enum.map(fn {{k, _}, i} -> {to_string(i + 1), k} end)
+      case Storage.get_profiles() do
+        %{} = profiles ->
+          options =
+            profiles
+            |> Enum.filter(fn {p, _} -> p != "selected" end)
+            |> Enum.with_index()
+            |> Enum.map(fn {{k, _}, i} -> {to_string(i + 1), k} end)
 
-        Printer.menu("Profiles", options)
+          Printer.menu("Profiles", options)
 
-        options
-      else
-        nil -> []
+          options
+
+        nil ->
+          []
       end
 
     name = Printer.gets(["Select/Create your profile", "Number/Name: "])
@@ -47,7 +53,8 @@ defmodule Oban.Console.Interactive do
     end
   end
 
-  defp queues() do
+  @spec queues() :: :ok
+  defp queues do
     Queues.show_list()
 
     Printer.menu(
@@ -65,18 +72,21 @@ defmodule Oban.Console.Interactive do
     |> command(:queues)
   end
 
-  defp resume_queue() do
+  @spec resume_queue() :: :ok
+  defp resume_queue do
     ["Resume", "Queue name: "]
     |> get_customer_string_list_input()
     |> command(:resume_queues)
   end
 
-  defp pause_queue() do
+  @spec pause_queue() :: :ok
+  defp pause_queue do
     ["Pause", "Queue name: "]
     |> get_customer_string_list_input()
     |> command(:pause_queues)
   end
 
+  @spec jobs(Keyword.t(), boolean()) :: :ok
   defp jobs(opts \\ [], list \\ true) do
     if list, do: Jobs.show_list(opts)
 
@@ -96,37 +106,43 @@ defmodule Oban.Console.Interactive do
     |> command(:jobs)
   end
 
-  defp debug_jobs() do
+  @spec debug_jobs() :: :ok
+  defp debug_jobs do
     ["Debug", "Job IDs (comma separated): "]
     |> get_customer_integer_list_input()
     |> command(:debug_jobs)
   end
 
-  defp clean_jobs(), do: Jobs.clean_storage()
+  @spec clean_jobs :: :ok
+  defp clean_jobs, do: Jobs.clean_storage()
 
-  defp cancel_jobs() do
+  @spec cancel_jobs() :: :ok
+  defp cancel_jobs do
     ["Cancel", "Job IDs (comma separated): "]
     |> get_customer_integer_list_input()
     |> command(:cancel_jobs)
   end
 
-  defp retry_jobs() do
+  @spec retry_jobs() :: :ok
+  defp retry_jobs do
     ["Retry", "Job IDs (comma separated): "]
     |> get_customer_integer_list_input()
     |> command(:retry_jobs)
   end
 
-  defp job_filters_history() do
+  defp parse_filter_history(filter) do
+    filter
+    |> Map.new(fn {k, v} -> {String.to_atom(k), v} end)
+    |> Map.to_list()
+    |> inspect()
+  end
+
+  defp job_filters_history do
     case Storage.get_profile() do
       {_, %{"filters" => filters}} ->
         filters
         |> Enum.with_index()
-        |> Enum.map(fn {filter, i} ->
-          filter
-          |> Map.new(fn {k, v} -> {String.to_atom(k), v} end)
-          |> then(fn filter -> {i, inspect(filter)} end)
-        end)
-        |> IO.inspect()
+        |> Enum.map(fn {filter, i} -> {i, parse_filter_history(filter)} end)
         |> then(fn list -> Printer.menu("Filters History", list) end)
 
         :ok
@@ -198,7 +214,7 @@ defmodule Oban.Console.Interactive do
 
   defp command(_, _), do: goodbye()
 
-  def eval_opts(opts) do
+  defp eval_opts(opts) do
     {keyword_list, _binding} = Code.eval_string(opts)
 
     {:ok, keyword_list}
@@ -208,7 +224,7 @@ defmodule Oban.Console.Interactive do
 
   defp print_list(list), do: Enum.map_join(list, ", ", &to_string/1)
 
-  defp filter_jobs() do
+  defp filter_jobs do
     previous_selected_opts = Storage.get_last_jobs_opts()
     previous_listed_ids = Storage.get_last_jobs_ids()
     previous_selected_ids = Keyword.get(previous_selected_opts, :ids, [])
