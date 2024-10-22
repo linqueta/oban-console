@@ -1,25 +1,8 @@
-defmodule Oban.Console.Config do
-  def oban_configured?() do
-    with {_, true} <- {:installed, Code.ensure_loaded?(Oban)},
-         {_, %Oban.Config{queues: [_ | _]}} <- {:configured, Oban.config()} do
-      :ok
-    else
-      {:installed, false} ->
-        {:error, "Oban is not installed"}
-
-      {:configured, %Oban.Config{queues: []}} ->
-        {:error, "Oban is installed but no queues are configured"}
-
-      {:configured, _} ->
-        {:error, "Oban isn't configured"}
-    end
-  end
-end
-
 defmodule Oban.Console.Storage do
   def get_last_jobs_opts() do
-    case System.get_env("OBAN_CONSOLE_JOBS_LAST_OPTS") do
+    case get_env("OBAN_CONSOLE_JOBS_LAST_OPTS") do
       nil -> []
+      "" -> []
       value -> value |> Jason.decode!(keys: :atoms) |> Map.to_list()
     end
   end
@@ -29,22 +12,15 @@ defmodule Oban.Console.Storage do
   end
 
   def get_last_jobs_ids() do
-    case System.get_env("OBAN_CONSOLE_JOBS_LAST_IDS") do
+    case get_env("OBAN_CONSOLE_JOBS_LAST_IDS") do
       nil -> []
+      "" -> []
       value -> value |> Jason.decode!()
     end
   end
 
   def set_last_jobs_ids(ids) do
     System.put_env("OBAN_CONSOLE_JOBS_LAST_IDS", ids |> Jason.encode!())
-  end
-
-  defp profile_file_path() do
-    path = "tmp/oban_console"
-    file_name = "profiles.json"
-    file_path = Path.join([path, file_name])
-
-    %{path: path, file_name: file_name, file_path: file_path}
   end
 
   def find_or_create_profile(nil, _), do: nil
@@ -63,6 +39,14 @@ defmodule Oban.Console.Storage do
     end
   end
 
+  def delete_profile_file() do
+    %{file_path: file_path} = profile_file_path()
+
+    put_oban_console_profile_env("")
+
+    File.rm(file_path)
+  end
+
   def get_profiles() do
     %{file_path: file_path} = profile_file_path()
 
@@ -73,13 +57,14 @@ defmodule Oban.Console.Storage do
   end
 
   def get_profile() do
-    with %{} = content <- get_profiles(),
-         %{"selected" => selected} = profiles <- Jason.decode!(content) do
-      put_oban_console_profile_env(selected)
+    case get_profiles() do
+      %{"selected" => selected} = profiles ->
+        put_oban_console_profile_env(selected)
 
-      {selected, Map.get(profiles, selected)}
-    else
-      nil -> nil
+        {selected, Map.get(profiles, selected)}
+
+      nil ->
+        nil
     end
   end
 
@@ -89,16 +74,31 @@ defmodule Oban.Console.Storage do
       selected
     else
       nil -> nil
+      "" -> nil
       selected -> selected
     end
   end
+
+  def add_job_filter_history([_ | _] = filters), do: add_job_filter_history(Map.new(filters))
 
   def add_job_filter_history(filters) do
     with {selected, content} <- get_profile() do
       data = %{"filters" => [filters | Map.get(content, "filters")]}
 
       save_profile(selected, data)
+
+      :ok
+    else
+      _ -> :ok
     end
+  end
+
+  defp profile_file_path() do
+    path = "tmp/oban_console"
+    file_name = "profiles.json"
+    file_path = Path.join([path, file_name])
+
+    %{path: path, file_name: file_name, file_path: file_path}
   end
 
   defp save_profile(name, content, update \\ true) do
@@ -128,8 +128,63 @@ defmodule Oban.Console.Storage do
 
   defp write_profile(file_path, content), do: File.write(file_path, Jason.encode!(content))
 
-  defp get_oban_console_profile_env(), do: System.get_env("OBAN_CONSOLE_PROFILE")
+  defp get_oban_console_profile_env(), do: get_env("OBAN_CONSOLE_PROFILE")
   defp put_oban_console_profile_env(value), do: System.put_env("OBAN_CONSOLE_PROFILE", value)
+
+  defp get_env(name) do
+    case System.get_env(name) do
+      nil -> nil
+      "" -> nil
+      value -> value
+    end
+  end
+end
+
+defmodule Oban.Console.Repo do
+  def queues do
+    Enum.map(Oban.config().queues, fn {name, _} ->
+      [queue: name]
+      |> Oban.check_queue()
+      |> Map.take([:queue, :paused, :local_limit])
+    end)
+  end
+
+  def pause_queue(name), do: Oban.pause_queue(queue: name)
+  def resume_queue(name), do: Oban.resume_queue(queue: name)
+
+  def all(query) do
+    Oban
+    |> Oban.config()
+    |> Oban.Repo.all(query)
+  end
+
+  def get_job(job_id) do
+    Oban
+    |> Oban.config()
+    |> Oban.Repo.get(Oban.Job, job_id)
+  end
+
+  def cancel_job(job_id), do: Oban.cancel_job(job_id)
+
+  def retry_job(job_id), do: Oban.retry_job(job_id)
+end
+
+defmodule Oban.Console.Config do
+  def oban_configured?() do
+    with {_, true} <- {:installed, Code.ensure_loaded?(Oban)},
+         {_, %Oban.Config{queues: [_ | _]}} <- {:configured, Oban.config()} do
+      :ok
+    else
+      {:installed, false} ->
+        {:error, "Oban is not installed"}
+
+      {:configured, %Oban.Config{queues: []}} ->
+        {:error, "Oban is installed but no queues are configured"}
+
+      {:configured, _} ->
+        {:error, "Oban isn't configured"}
+    end
+  end
 end
 
 defmodule Oban.Console.View.Printer do
@@ -159,6 +214,12 @@ defmodule Oban.Console.View.Printer do
 
   @spec break() :: :ok
   def break, do: IO.puts("")
+
+  def error([header | remaining]) do
+    [red(header), remaining]
+    |> List.flatten()
+    |> Enum.join(" | ")
+  end
 
   def title([header | remaining]) do
     [header_color(header), remaining]
@@ -283,51 +344,9 @@ defmodule Oban.Console.View.Table do
   end
 end
 
-defmodule Oban.Console.Queues do
-  alias Oban.Console.View.Printer
-  alias Oban.Console.View.Table
-
-  def list() do
-    Enum.map(Oban.config().queues, fn {name, _} ->
-      [queue: name]
-      |> Oban.check_queue()
-      |> Map.take([:queue, :paused, :local_limit])
-    end)
-  end
-
-  def show_list() do
-    headers = [:queue, :paused, :local_limit]
-
-    Table.show(list(), headers, nil)
-  end
-
-  def pause_queues([_ | _] = names), do: Enum.each(names, &pause_queues/1)
-  def pause_queues([]), do: :ok
-
-  def pause_queues(name) when is_binary(name) do
-    Oban.pause_queue(queue: name)
-    ["Paused", name] |> Printer.title() |> IO.puts()
-  end
-
-  def pause_queues(name) do
-    ["Pause", name, "Queue name is not valid"] |> Printer.title() |> IO.puts()
-  end
-
-  def resume_queues([_ | _] = names), do: Enum.each(names, &resume_queues/1)
-  def resume_queues([]), do: :ok
-
-  def resume_queues(name) when is_binary(name)  do
-    Oban.resume_queue(queue: name)
-    ["Resumed", name] |> Printer.title() |> IO.puts()
-  end
-
-  def resume_queues(name) do
-    ["Resume", name, "Queue name is not valid"] |> Printer.title() |> IO.puts()
-  end
-end
-
 defmodule Oban.Console.Jobs do
   alias Oban.Console.View.Printer
+  alias Oban.Console.View.Table
 
   @states %{
     "1" => "available",
@@ -345,20 +364,9 @@ defmodule Oban.Console.Jobs do
   import Ecto.Query
 
   alias Oban.Console.Storage
+  alias Oban.Console.Repo
 
-  def list(opts \\ []) do
-    Oban
-    |> Oban.config()
-    |> Oban.Repo.all(list_query(opts))
-  end
-
-  defp ids_listed_before(opts) do
-    case Keyword.get(opts, :ids, []) do
-      nil -> []
-      [0] -> Storage.get_last_jobs_ids()
-      ids -> ids
-    end
-  end
+  def list(opts \\ []), do: Repo.all(list_query(opts))
 
   def show_list(opts \\ []) do
     headers = [:id, :worker, :state, :queue, :attempt, :inserted_at, :attempted_at, :scheduled_at]
@@ -375,9 +383,12 @@ defmodule Oban.Console.Jobs do
     response = list(opts)
     ids = Enum.map(response, fn job -> job.id end)
 
+    if Storage.get_last_jobs_opts() != opts do
+      Storage.add_job_filter_history(opts)
+    end
+
     Storage.set_last_jobs_ids(ids)
     Storage.set_last_jobs_opts(opts)
-    Storage.add_job_filter_history(opts)
 
     filters =
       Enum.reject(opts, fn
@@ -388,7 +399,7 @@ defmodule Oban.Console.Jobs do
 
     current_time = Calendar.strftime(DateTime.utc_now(), "%Y-%m-%d %H:%M:%S")
 
-    Oban.Console.View.Table.show(
+    Table.show(
       response,
       headers,
       "[#{current_time}] Rows: #{length(response)} Filters: #{inspect(filters)} Sorts: DESC attempted_at, DESC scheduled_at"
@@ -407,45 +418,55 @@ defmodule Oban.Console.Jobs do
   def debug_jobs([]), do: :ok
 
   def debug_jobs(job_id) when is_integer(job_id) do
-    Oban
-    |> Oban.config()
-    |> Oban.Repo.get(Oban.Job, job_id)
-    |> then(fn
+    case Repo.get_job(job_id) do
       nil ->
-        ["Job", job_id, "Job not found"] |> Printer.title() |> IO.puts()
+        ["Job", job_id, "Job not found"] |> Printer.error() |> IO.puts()
 
       job ->
+        Printer.break()
         ["Job", job_id] |> Printer.title() |> IO.puts()
+
+        # credo:disable-for-next-line
         IO.inspect(job)
-    end)
+
+        :ok
+    end
   end
 
   def debug_jobs(job_id) do
-    ["Debug", job_id, "Job ID is not valid"] |> Printer.title() |> IO.puts()
+    ["Debug", job_id, "Job ID is not valid"] |> Printer.error() |> IO.puts()
   end
 
   def retry_jobs([_ | _] = jobs_ids), do: Enum.each(jobs_ids, &retry_jobs/1)
   def retry_jobs([]), do: :ok
 
   def retry_jobs(job_id) when is_integer(job_id) do
-    Oban.retry_job(job_id)
+    Repo.retry_job(job_id)
     ["Retried", job_id] |> Printer.title() |> IO.puts()
   end
 
   def retry_jobs(job_id) do
-    ["Retry", job_id, "Job ID is not valid"] |> Printer.title() |> IO.puts()
+    ["Retry", job_id, "Job ID is not valid"] |> Printer.error() |> IO.puts()
   end
 
   def cancel_jobs([_ | _] = jobs_ids), do: Enum.each(jobs_ids, &cancel_jobs/1)
   def cancel_jobs([]), do: :ok
 
   def cancel_jobs(job_id) when is_integer(job_id) do
-    Oban.cancel_job(job_id)
+    Repo.cancel_job(job_id)
     ["Cancelled", job_id] |> Printer.title() |> IO.puts()
   end
 
   def cancel_jobs(job_id) do
-    ["Cancel", job_id, "Job ID is not valid"] |> Printer.title() |> IO.puts()
+    ["Cancel", job_id, "Job ID is not valid"] |> Printer.error() |> IO.puts()
+  end
+
+  defp ids_listed_before(opts) do
+    case Keyword.get(opts, :ids, []) do
+      nil -> []
+      [0] -> Storage.get_last_jobs_ids()
+      ids -> ids
+    end
   end
 
   defp list_query(opts) do
@@ -530,14 +551,50 @@ defmodule Oban.Console.Jobs do
     query
     |> order_by(
       [j],
-      fragment(
-        "CASE WHEN attempted_at IS NULL THEN '2050-12-30 00:00:00.000' ELSE attempted_at END"
-      )
+      fragment("CASE WHEN attempted_at IS NULL THEN '2050-12-30 00:00:00.000' ELSE attempted_at END")
     )
     |> order_by([j], desc: j.attempted_at)
   end
 
   defp sort_by_scheduled_at(query), do: order_by(query, [j], desc: j.scheduled_at)
+end
+
+defmodule Oban.Console.Queues do
+  alias Oban.Console.View.Printer
+  alias Oban.Console.View.Table
+  alias Oban.Console.Repo
+
+  def list(), do: Repo.queues()
+
+  def show_list() do
+    headers = [:queue, :paused, :local_limit]
+
+    Table.show(list(), headers, nil)
+  end
+
+  def pause_queues([_ | _] = names), do: Enum.each(names, &pause_queues/1)
+  def pause_queues([]), do: :ok
+
+  def pause_queues(name) when is_binary(name) do
+    Repo.pause_queue(queue: name)
+    ["Paused", name] |> Printer.title() |> IO.puts()
+  end
+
+  def pause_queues(name) do
+    ["Pause", name, "Queue name is not valid"] |> Printer.error() |> IO.puts()
+  end
+
+  def resume_queues([_ | _] = names), do: Enum.each(names, &resume_queues/1)
+  def resume_queues([]), do: :ok
+
+  def resume_queues(name) when is_binary(name) do
+    Repo.resume_queue(queue: name)
+    ["Resumed", name] |> Printer.title() |> IO.puts()
+  end
+
+  def resume_queues(name) do
+    ["Resume", name, "Queue name is not valid"] |> Printer.error() |> IO.puts()
+  end
 end
 
 defmodule Oban.Console.Interactive do
@@ -817,4 +874,18 @@ defmodule Oban.Console.Interactive do
   defp presence(value), do: value
 end
 
-Oban.Console.Interactive.start()
+defmodule Oban.Console do
+  alias Oban.Console.View.Printer
+
+  def interactive() do
+    case Oban.Console.Config.oban_configured?() do
+      {:error, reason} ->
+        ["Error", reason] |> Printer.error() |> IO.puts()
+
+        {:error, reason}
+
+      :ok ->
+        Oban.Console.Interactive.start()
+    end
+  end
+end

@@ -1,0 +1,55 @@
+[
+  {
+    "file": "lib/view/printer.ex",
+    "deps": []
+  },
+  {
+    "file": "lib/view/table.ex",
+    "deps": [
+      "lib/view/printer.ex"
+    ]
+  },
+  {
+    "file": "lib/config.ex",
+    "deps": []
+  },
+  {
+    "file": "lib/repo.ex",
+    "deps": []
+  },
+  {
+    "file": "lib/queues.ex",
+    "deps": [
+      "lib/view/printer.ex",
+      "lib/view/table.ex",
+      "lib/repo.ex"
+    ]
+  },
+  {
+    "file": "lib/jobs.ex",
+    "deps": [
+      "lib/view/printer.ex",
+      "lib/view/table.ex",
+      "lib/repo.ex"
+    ]
+  },
+  {
+    "file": "lib/storage.ex",
+    "deps": []
+  },
+  {
+    "file": "lib/interactive.ex",
+    "deps": [
+      "lib/view/printer.ex",
+      "lib/jobs.ex",
+      "lib/queues.ex",
+      "lib/storage.ex"
+    ]
+  },
+  {
+    "file": "lib/oban_console.ex",
+    "deps": [
+      "lib/interactive.ex"
+    ]
+  }
+]
