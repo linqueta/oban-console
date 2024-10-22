@@ -1,5 +1,6 @@
 defmodule Oban.Console.Storage do
-  def get_last_jobs_opts() do
+  @spec get_last_jobs_opts() :: list
+  def get_last_jobs_opts do
     case get_env("OBAN_CONSOLE_JOBS_LAST_OPTS") do
       nil -> []
       "" -> []
@@ -7,11 +8,13 @@ defmodule Oban.Console.Storage do
     end
   end
 
+  @spec set_last_jobs_opts(list) :: :ok
   def set_last_jobs_opts(opts) do
     System.put_env("OBAN_CONSOLE_JOBS_LAST_OPTS", opts |> Map.new() |> Jason.encode!())
   end
 
-  def get_last_jobs_ids() do
+  @spec get_last_jobs_ids() :: list
+  def get_last_jobs_ids do
     case get_env("OBAN_CONSOLE_JOBS_LAST_IDS") do
       nil -> []
       "" -> []
@@ -19,10 +22,12 @@ defmodule Oban.Console.Storage do
     end
   end
 
+  @spec set_last_jobs_ids(list) :: :ok
   def set_last_jobs_ids(ids) do
     System.put_env("OBAN_CONSOLE_JOBS_LAST_IDS", ids |> Jason.encode!())
   end
 
+  @spec find_or_create_profile(String.t(), []) :: :ok
   def find_or_create_profile(nil, _), do: nil
   def find_or_create_profile("", _), do: nil
 
@@ -32,6 +37,9 @@ defmodule Oban.Console.Storage do
       put_oban_console_profile_env(name)
     else
       {_, selected_profile} ->
+        profile = Map.get(get_profiles(), selected_profile)
+
+        save_profile(name, profile)
         put_oban_console_profile_env(selected_profile)
 
       error ->
@@ -39,7 +47,8 @@ defmodule Oban.Console.Storage do
     end
   end
 
-  def delete_profile_file() do
+  @spec delete_profile_file() :: :ok
+  def delete_profile_file do
     %{file_path: file_path} = profile_file_path()
 
     put_oban_console_profile_env("")
@@ -47,7 +56,8 @@ defmodule Oban.Console.Storage do
     File.rm(file_path)
   end
 
-  def get_profiles() do
+  @spec get_profiles() :: map
+  def get_profiles do
     %{file_path: file_path} = profile_file_path()
 
     case File.read(file_path) do
@@ -56,7 +66,8 @@ defmodule Oban.Console.Storage do
     end
   end
 
-  def get_profile() do
+  @spec get_profile() :: {String.t(), map} | nil
+  def get_profile do
     case get_profiles() do
       %{"selected" => selected} = profiles ->
         put_oban_console_profile_env(selected)
@@ -68,7 +79,8 @@ defmodule Oban.Console.Storage do
     end
   end
 
-  def get_profile_name() do
+  @spec get_profile_name() :: String.t() | nil
+  def get_profile_name do
     with nil <- get_oban_console_profile_env(),
          {selected, _} <- get_profile() do
       selected
@@ -79,21 +91,24 @@ defmodule Oban.Console.Storage do
     end
   end
 
+  @spec add_job_filter_history(Keyword.t()) :: :ok
   def add_job_filter_history([_ | _] = filters), do: add_job_filter_history(Map.new(filters))
 
   def add_job_filter_history(filters) do
-    with {selected, content} <- get_profile() do
-      data = %{"filters" => [filters | Map.get(content, "filters")]}
+    case get_profile() do
+      {selected, content} ->
+        data = %{"filters" => [filters | Map.get(content, "filters")]}
 
-      save_profile(selected, data)
+        save_profile(selected, data)
 
-      :ok
-    else
-      _ -> :ok
+        :ok
+
+      _ ->
+        :ok
     end
   end
 
-  defp profile_file_path() do
+  defp profile_file_path do
     path = "tmp/oban_console"
     file_name = "profiles.json"
     file_path = Path.join([path, file_name])
@@ -104,19 +119,15 @@ defmodule Oban.Console.Storage do
   defp save_profile(name, content) do
     %{path: path, file_path: file_path} = profile_file_path()
 
-    with %{} = profiles <- get_profiles() do
-      change =
-        case Map.get(profiles, name) do
-          nil -> %{"selected" => name, name => content}
-          _ -> %{"selected" => name}
-        end
+    case get_profiles() do
+      %{} = profiles ->
+        change = %{"selected" => name, name => content}
+        content = Map.merge(profiles, change)
 
-      content = Map.merge(profiles, change)
+        write_profile(file_path, content)
 
-      write_profile(file_path, content)
+        {:ok, content}
 
-      {:ok, content}
-    else
       false ->
         {:ok, Map.get(get_profiles(), name)}
 
@@ -133,7 +144,7 @@ defmodule Oban.Console.Storage do
 
   defp write_profile(file_path, content), do: File.write(file_path, Jason.encode!(content))
 
-  defp get_oban_console_profile_env(), do: get_env("OBAN_CONSOLE_PROFILE")
+  defp get_oban_console_profile_env, do: get_env("OBAN_CONSOLE_PROFILE")
   defp put_oban_console_profile_env(value), do: System.put_env("OBAN_CONSOLE_PROFILE", value)
 
   defp get_env(name) do
@@ -146,6 +157,7 @@ defmodule Oban.Console.Storage do
 end
 
 defmodule Oban.Console.Repo do
+  @spec queues() :: [map()]
   def queues do
     Enum.map(Oban.config().queues, fn {name, _} ->
       [queue: name]
@@ -154,28 +166,36 @@ defmodule Oban.Console.Repo do
     end)
   end
 
+  @spec pause_queue(String.t()) :: :ok
   def pause_queue(name), do: Oban.pause_queue(queue: name)
+
+  @spec resume_queue(String.t()) :: :ok
   def resume_queue(name), do: Oban.resume_queue(queue: name)
 
+  @spec all(Ecto.Query.t()) :: [map()]
   def all(query) do
     Oban
     |> Oban.config()
     |> Oban.Repo.all(query)
   end
 
+  @spec get_job(String.t()) :: map()
   def get_job(job_id) do
     Oban
     |> Oban.config()
     |> Oban.Repo.get(Oban.Job, job_id)
   end
 
+  @spec cancel_job(String.t()) :: :ok
   def cancel_job(job_id), do: Oban.cancel_job(job_id)
 
+  @spec retry_job(String.t()) :: :ok
   def retry_job(job_id), do: Oban.retry_job(job_id)
 end
 
 defmodule Oban.Console.Config do
-  def oban_configured?() do
+  @spec oban_configured?() :: :ok | {:error, String.t()}
+  def oban_configured? do
     with {_, true} <- {:installed, Code.ensure_loaded?(Oban)},
          {_, %Oban.Config{queues: [_ | _]}} <- {:configured, Oban.config()} do
       :ok
@@ -201,6 +221,7 @@ defmodule Oban.Console.View.Printer do
   @spec separator(integer()) :: String.t()
   def separator(size \\ 80), do: String.pad_trailing("", size, "-")
 
+  @spec menu(String.t(), list()) :: :ok
   def menu(label, items) do
     break()
 
@@ -220,18 +241,21 @@ defmodule Oban.Console.View.Printer do
   @spec break() :: :ok
   def break, do: IO.puts("")
 
+  @spec error([String.t()]) :: String.t()
   def error([header | remaining]) do
     [red(header), remaining]
     |> List.flatten()
     |> Enum.join(" | ")
   end
 
+  @spec title([String.t()]) :: String.t()
   def title([header | remaining]) do
     [header_color(header), remaining]
     |> List.flatten()
     |> Enum.join(" | ")
   end
 
+  @spec gets([String.t()], atom()) :: String.t()
   def gets(items, convert \\ nil) do
     data =
       title(items)
@@ -244,25 +268,41 @@ defmodule Oban.Console.View.Printer do
     end
   end
 
+  @spec header_color(String.t()) :: String.t()
   def header_color(text), do: IO.ANSI.light_blue() <> text <> IO.ANSI.reset()
 
+  @spec showable(any()) :: String.t()
   def showable(%DateTime{} = datetime), do: Calendar.strftime(datetime, "%Y-%m-%d %H:%M:%S")
   def showable(%NaiveDateTime{} = datetime), do: Calendar.strftime(datetime, "%Y-%m-%d %H:%M:%S")
   def showable(value) when is_binary(value), do: value
   def showable(value), do: inspect(value)
 
+  @spec red(String.t()) :: String.t()
   def red(text), do: IO.ANSI.red() <> text <> IO.ANSI.reset()
+
+  @spec green(String.t()) :: String.t()
   def green(text), do: IO.ANSI.green() <> text <> IO.ANSI.reset()
+
+  @spec light_yellow(String.t()) :: String.t()
   def light_yellow(text), do: IO.ANSI.light_yellow() <> text <> IO.ANSI.reset()
+
+  @spec light_black(String.t()) :: String.t()
   def light_black(text), do: IO.ANSI.light_black() <> text <> IO.ANSI.reset()
+
+  @spec light_magenta(String.t()) :: String.t()
   def light_magenta(text), do: IO.ANSI.light_magenta() <> text <> IO.ANSI.reset()
+
+  @spec light_green(String.t()) :: String.t()
   def light_green(text), do: IO.ANSI.light_green() <> text <> IO.ANSI.reset()
+
+  @spec light_red(String.t()) :: String.t()
   def light_red(text), do: IO.ANSI.light_red() <> text <> IO.ANSI.reset()
 end
 
 defmodule Oban.Console.View.Table do
   alias Oban.Console.View.Printer
 
+  @spec show([map()], [atom()], String.t()) :: :ok
   def show([], _, title) do
     Printer.break()
 
@@ -350,6 +390,10 @@ defmodule Oban.Console.View.Table do
 end
 
 defmodule Oban.Console.Jobs do
+  import Ecto.Query
+
+  alias Oban.Console.Repo
+  alias Oban.Console.Storage
   alias Oban.Console.View.Printer
   alias Oban.Console.View.Table
 
@@ -366,13 +410,10 @@ defmodule Oban.Console.Jobs do
   @in_progress_states ~w[available scheduled retryable executing]
   @failed_states ~w[cancelled discarded]
 
-  import Ecto.Query
-
-  alias Oban.Console.Storage
-  alias Oban.Console.Repo
-
+  @spec list([Keyword.t()]) :: [Oban.Job.t()]
   def list(opts \\ []), do: Repo.all(list_query(opts))
 
+  @spec show_list([Keyword.t()]) :: :ok
   def show_list(opts \\ []) do
     headers = [:id, :worker, :state, :queue, :attempt, :inserted_at, :attempted_at, :scheduled_at]
     opts = if opts == [], do: Storage.get_last_jobs_opts(), else: opts
@@ -417,8 +458,10 @@ defmodule Oban.Console.Jobs do
       show_list()
   end
 
-  def clean_storage(), do: Storage.set_last_jobs_opts([])
+  @spec clean_storage() :: :ok
+  def clean_storage, do: Storage.set_last_jobs_opts([])
 
+  @spec debug_jobs([integer() | [integer()]]) :: :ok
   def debug_jobs([_ | _] = jobs_ids), do: Enum.each(jobs_ids, &debug_jobs/1)
   def debug_jobs([]), do: :ok
 
@@ -442,6 +485,7 @@ defmodule Oban.Console.Jobs do
     ["Debug", job_id, "Job ID is not valid"] |> Printer.error() |> IO.puts()
   end
 
+  @spec retry_jobs([integer() | [integer()]]) :: :ok
   def retry_jobs([_ | _] = jobs_ids), do: Enum.each(jobs_ids, &retry_jobs/1)
   def retry_jobs([]), do: :ok
 
@@ -454,6 +498,7 @@ defmodule Oban.Console.Jobs do
     ["Retry", job_id, "Job ID is not valid"] |> Printer.error() |> IO.puts()
   end
 
+  @spec cancel_jobs([integer() | [integer()]]) :: :ok
   def cancel_jobs([_ | _] = jobs_ids), do: Enum.each(jobs_ids, &cancel_jobs/1)
   def cancel_jobs([]), do: :ok
 
@@ -565,18 +610,21 @@ defmodule Oban.Console.Jobs do
 end
 
 defmodule Oban.Console.Queues do
+  alias Oban.Console.Repo
   alias Oban.Console.View.Printer
   alias Oban.Console.View.Table
-  alias Oban.Console.Repo
 
-  def list(), do: Repo.queues()
+  @spec list() :: [Oban.Queue.t()]
+  def list, do: Repo.queues()
 
-  def show_list() do
+  @spec show_list() :: :ok
+  def show_list do
     headers = [:queue, :paused, :local_limit]
 
     Table.show(list(), headers, nil)
   end
 
+  @spec pause_queues([String.t()]) :: :ok
   def pause_queues([_ | _] = names), do: Enum.each(names, &pause_queues/1)
   def pause_queues([]), do: :ok
 
@@ -589,6 +637,7 @@ defmodule Oban.Console.Queues do
     ["Pause", name, "Queue name is not valid"] |> Printer.error() |> IO.puts()
   end
 
+  @spec resume_queues([String.t()]) :: :ok
   def resume_queues([_ | _] = names), do: Enum.each(names, &resume_queues/1)
   def resume_queues([]), do: :ok
 
@@ -608,11 +657,13 @@ defmodule Oban.Console.Interactive do
   alias Oban.Console.Storage
   alias Oban.Console.View.Printer
 
-  def start() do
+  @spec start() :: :ok
+  def start do
     initial_menu()
   end
 
-  defp initial_menu() do
+  @spec initial_menu() :: :ok
+  defp initial_menu do
     Printer.menu("Menu:", [
       {1, "Jobs"},
       {2, "Queues"},
@@ -625,22 +676,26 @@ defmodule Oban.Console.Interactive do
     |> command(:initial_menu)
   end
 
-  defp goodbye(), do: Printer.menu("Goodbye!", [])
+  @spec goodbye() :: :ok
+  defp goodbye, do: Printer.menu("Goodbye!", [])
 
-  defp profile() do
+  @spec profile() :: :ok
+  defp profile do
     list =
-      with %{} = profiles <- Storage.get_profiles() do
-        options =
-          profiles
-          |> Enum.filter(fn {p, _} -> p != "selected" end)
-          |> Enum.with_index()
-          |> Enum.map(fn {{k, _}, i} -> {to_string(i + 1), k} end)
+      case Storage.get_profiles() do
+        %{} = profiles ->
+          options =
+            profiles
+            |> Enum.filter(fn {p, _} -> p != "selected" end)
+            |> Enum.with_index()
+            |> Enum.map(fn {{k, _}, i} -> {to_string(i + 1), k} end)
 
-        Printer.menu("Profiles", options)
+          Printer.menu("Profiles", options)
 
-        options
-      else
-        nil -> []
+          options
+
+        nil ->
+          []
       end
 
     name = Printer.gets(["Select/Create your profile", "Number/Name: "])
@@ -651,7 +706,8 @@ defmodule Oban.Console.Interactive do
     end
   end
 
-  defp queues() do
+  @spec queues() :: :ok
+  defp queues do
     Queues.show_list()
 
     Printer.menu(
@@ -669,18 +725,21 @@ defmodule Oban.Console.Interactive do
     |> command(:queues)
   end
 
-  defp resume_queue() do
+  @spec resume_queue() :: :ok
+  defp resume_queue do
     ["Resume", "Queue name: "]
     |> get_customer_string_list_input()
     |> command(:resume_queues)
   end
 
-  defp pause_queue() do
+  @spec pause_queue() :: :ok
+  defp pause_queue do
     ["Pause", "Queue name: "]
     |> get_customer_string_list_input()
     |> command(:pause_queues)
   end
 
+  @spec jobs(Keyword.t(), boolean()) :: :ok
   defp jobs(opts \\ [], list \\ true) do
     if list, do: Jobs.show_list(opts)
 
@@ -700,32 +759,43 @@ defmodule Oban.Console.Interactive do
     |> command(:jobs)
   end
 
-  defp debug_jobs() do
+  @spec debug_jobs() :: :ok
+  defp debug_jobs do
     ["Debug", "Job IDs (comma separated): "]
     |> get_customer_integer_list_input()
     |> command(:debug_jobs)
   end
 
-  defp clean_jobs(), do: Jobs.clean_storage()
+  @spec clean_jobs :: :ok
+  defp clean_jobs, do: Jobs.clean_storage()
 
-  defp cancel_jobs() do
+  @spec cancel_jobs() :: :ok
+  defp cancel_jobs do
     ["Cancel", "Job IDs (comma separated): "]
     |> get_customer_integer_list_input()
     |> command(:cancel_jobs)
   end
 
-  defp retry_jobs() do
+  @spec retry_jobs() :: :ok
+  defp retry_jobs do
     ["Retry", "Job IDs (comma separated): "]
     |> get_customer_integer_list_input()
     |> command(:retry_jobs)
   end
 
-  defp job_filters_history() do
+  defp parse_filter_history(filter) do
+    filter
+    |> Map.new(fn {k, v} -> {String.to_atom(k), v} end)
+    |> Map.to_list()
+    |> inspect()
+  end
+
+  defp job_filters_history do
     case Storage.get_profile() do
       {_, %{"filters" => filters}} ->
         filters
         |> Enum.with_index()
-        |> Enum.map(fn {f, i} -> {i, inspect(f)} end)
+        |> Enum.map(fn {filter, i} -> {i, parse_filter_history(filter)} end)
         |> then(fn list -> Printer.menu("Filters History", list) end)
 
         :ok
@@ -797,7 +867,7 @@ defmodule Oban.Console.Interactive do
 
   defp command(_, _), do: goodbye()
 
-  def eval_opts(opts) do
+  defp eval_opts(opts) do
     {keyword_list, _binding} = Code.eval_string(opts)
 
     {:ok, keyword_list}
@@ -807,7 +877,7 @@ defmodule Oban.Console.Interactive do
 
   defp print_list(list), do: Enum.map_join(list, ", ", &to_string/1)
 
-  defp filter_jobs() do
+  defp filter_jobs do
     previous_selected_opts = Storage.get_last_jobs_opts()
     previous_listed_ids = Storage.get_last_jobs_ids()
     previous_selected_ids = Keyword.get(previous_selected_opts, :ids, [])
@@ -888,7 +958,8 @@ end
 defmodule Oban.Console do
   alias Oban.Console.View.Printer
 
-  def interactive() do
+  @spec interactive() :: :ok | {:error, String.t()}
+  def interactive do
     case Oban.Console.Config.oban_configured?() do
       {:error, reason} ->
         ["Error", reason] |> Printer.error() |> IO.puts()
