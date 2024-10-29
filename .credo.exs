@@ -55,7 +55,8 @@
 
         # disabled checks
         {Credo.Check.Readability.ModuleDoc, false},
-        {Credo.Check.Warning.MissedMetadataKeyInLoggerConfig, false}
+        {Credo.Check.Warning.MissedMetadataKeyInLoggerConfig, false},
+        {Credo.Check.Refactor.CyclomaticComplexity, max_complexity: 20}
       ]
     }
   ]

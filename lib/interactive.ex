@@ -232,6 +232,11 @@ defmodule Oban.Console.Interactive do
     previous_selected_queues = Keyword.get(previous_selected_opts, :queues, [])
     previous_selected_workers = Keyword.get(previous_selected_opts, :workers, [])
 
+    previous_selected_sorts =
+      previous_selected_opts
+      |> Keyword.get(:sorts, [])
+      |> Enum.map(fn %{dir: dir, field: field} -> "#{dir}: #{field}" end)
+
     Printer.break()
 
     if Enum.any?(previous_listed_ids),
@@ -258,6 +263,9 @@ defmodule Oban.Console.Interactive do
     if Enum.any?(previous_selected_workers),
       do: Printer.title(["Selected Workers", print_list(previous_selected_workers)]) |> IO.puts()
 
+    if Enum.any?(previous_selected_sorts),
+      do: Printer.title(["Selected Sort", print_list(previous_selected_sorts)]) |> IO.puts()
+
     Printer.break()
 
     ids = get_customer_integer_list_input(["Filter", "IDs (comma separated): "])
@@ -267,10 +275,28 @@ defmodule Oban.Console.Interactive do
     workers =
       get_customer_string_list_input(["Filter", "Workers (comma separated, - to exclude): "])
 
+    sorts =
+      ["Filter", "Sorts (comma separated): "]
+      |> get_customer_string_list_input()
+      |> Enum.map(fn s ->
+        splited = if String.contains?(s, ":"), do: String.split(s, ":"), else: String.split(s, " ")
+        trimmed = Enum.map(splited, &String.trim/1)
+
+        case trimmed do
+          [field] -> %{dir: :asc, field: field}
+          [field, "asc"] -> %{dir: :asc, field: field}
+          [field, "desc"] -> %{dir: :desc, field: field}
+          ["asc", field] -> %{dir: :asc, field: field}
+          ["desc", field] -> %{dir: :desc, field: field}
+          _ -> nil
+        end
+      end)
+      |> Enum.reject(&is_nil/1)
+
     limit =
       ["Filter", "Limit (default 20): "] |> get_customer_integer_list_input() |> List.first()
 
-    jobs(ids: ids, states: states, limit: limit, workers: workers, queues: queues)
+    jobs(ids: ids, states: states, limit: limit, workers: workers, queues: queues, sorts: sorts)
   end
 
   defp get_customer_integer_list_input(title) do

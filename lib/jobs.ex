@@ -30,10 +30,14 @@ defmodule Oban.Console.Jobs do
     limit = Keyword.get(opts, :limit, 20) || 20
     converted_states = convert_states(Keyword.get(opts, :states, [])) || []
     ids = ids_listed_before(opts)
+    sorts = Keyword.get(opts, :sorts, [%{dir: :desc, field: "id"}]) || [%{dir: :desc, field: "id"}]
 
-    opts = Keyword.put(opts, :ids, ids)
-    opts = Keyword.put(opts, :states, converted_states)
-    opts = Keyword.put(opts, :limit, limit)
+    opts =
+      opts
+      |> Keyword.put(:ids, ids)
+      |> Keyword.put(:sorts, sorts)
+      |> Keyword.put(:states, converted_states)
+      |> Keyword.put(:limit, limit)
 
     response = list(opts)
     ids = Enum.map(response, fn job -> job.id end)
@@ -57,7 +61,7 @@ defmodule Oban.Console.Jobs do
     Table.show(
       response,
       headers,
-      "[#{current_time}] Rows: #{length(response)} Filters: #{inspect(filters)} Sorts: DESC attempted_at, DESC scheduled_at"
+      "[#{current_time}] Rows: #{length(response)} Filters: #{inspect(filters)}"
     )
   rescue
     e ->
@@ -134,8 +138,7 @@ defmodule Oban.Console.Jobs do
     |> filter_by_states(Keyword.get(opts, :states))
     |> filter_by_queues(Keyword.get(opts, :queues))
     |> filter_by_workers(Keyword.get(opts, :workers))
-    |> sort_by_attempted_at()
-    |> sort_by_scheduled_at()
+    |> sort_by(Keyword.get(opts, :sorts))
     |> limit_by(Keyword.get(opts, :limit))
   end
 
@@ -206,14 +209,19 @@ defmodule Oban.Console.Jobs do
   defp limit_by(query, nil), do: limit(query, 20)
   defp limit_by(query, limit), do: limit(query, ^limit)
 
-  defp sort_by_attempted_at(query) do
-    query
-    |> order_by(
-      [j],
-      fragment("CASE WHEN attempted_at IS NULL THEN '2050-12-30 00:00:00.000' ELSE attempted_at END")
-    )
-    |> order_by([j], desc: j.attempted_at)
+  defp sort_by(query, nil), do: query
+  defp sort_by(query, []), do: query
+
+  defp sort_by(query, sorts) do
+    Enum.reduce(sorts, query, fn sort, query -> sort_by_single(query, sort) end)
   end
 
-  defp sort_by_scheduled_at(query), do: order_by(query, [j], desc: j.scheduled_at)
+  defp sort_by_single(query, %{dir: direction, field: selected_field}) do
+    parsed_field = String.to_atom(selected_field)
+
+    case direction do
+      :asc -> order_by(query, [j], asc: field(j, ^parsed_field))
+      :desc -> order_by(query, [j], desc: field(j, ^parsed_field))
+    end
+  end
 end
