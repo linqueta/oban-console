@@ -30,7 +30,7 @@ defmodule Oban.Console.Jobs do
     limit = Keyword.get(opts, :limit, 20) || 20
     converted_states = convert_states(Keyword.get(opts, :states, [])) || []
     ids = ids_listed_before(opts)
-    sorts = Keyword.get(opts, :sorts, [%{dir: :desc, field: "id"}]) || [%{dir: :desc, field: "id"}]
+    sorts = Keyword.get(opts, :sorts, [%{dir: "desc", field: "id"}]) || [%{dir: "desc", field: "id"}]
 
     opts =
       opts
@@ -220,8 +220,8 @@ defmodule Oban.Console.Jobs do
     parsed_field = String.to_atom(selected_field)
 
     case direction do
-      :asc -> order_by(query, [j], asc: field(j, ^parsed_field))
-      :desc -> order_by(query, [j], desc: field(j, ^parsed_field))
+      "asc" -> order_by(query, [j], asc: field(j, ^parsed_field))
+      "desc" -> order_by(query, [j], desc: field(j, ^parsed_field))
     end
   end
 end
