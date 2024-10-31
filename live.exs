@@ -576,11 +576,13 @@ defmodule Oban.Console.Jobs do
   end
 
   defp filter_by_args(query, nil), do: query
+
   defp filter_by_args(query, args) do
     where(query, [j], fragment("?::text", j.args) |> like(^"%#{args}%"))
   end
 
   defp filter_by_meta(query, nil), do: query
+
   defp filter_by_meta(query, meta) do
     where(query, [j], fragment("?::text", j.meta) |> like(^"%#{meta}%"))
   end
@@ -929,40 +931,42 @@ defmodule Oban.Console.Interactive do
 
     Printer.break()
 
+    print_selected("Hint", ["Use comma to separate values", "Use - to clean filters", "Use : to sort values"])
+
     ids =
-      ["Filter", "IDs (comma separated): "]
+      ["Filter", "IDs: "]
       |> get_customer_integer_list_input()
       |> fallback(previous_selected_ids)
 
     states =
-      ["Filter", "States (comma separated): "]
+      ["Filter", "States: "]
       |> get_customer_string_list_input()
       |> fallback(previous_selected_states)
 
     queues =
-      ["Filter", "Queues (comma separated): "]
+      ["Filter", "Queues: "]
       |> get_customer_string_list_input()
       |> fallback(previous_selected_queues)
 
     workers =
-      ["Filter", "Workers (comma separated, - to exclude): "]
+      ["Filter", "Workers: "]
       |> get_customer_string_list_input()
       |> fallback(previous_selected_workers)
 
     args =
-      ["Filter", "Args (Contains): "]
+      ["Filter", "Args: "]
       |> get_customer_string_list_input()
       |> List.first()
       |> fallback(previous_selected_args)
 
     meta =
-      ["Filter", "Meta (Contains): "]
+      ["Filter", "Meta: "]
       |> get_customer_string_list_input()
       |> List.first()
       |> fallback(previous_selected_meta)
 
     sorts =
-      ["Filter", "Sorts (comma separated): "]
+      ["Filter", "Sorts: "]
       |> get_customer_string_list_input()
       |> Enum.map(fn s ->
         splited = if String.contains?(s, ":"), do: String.split(s, ":"), else: String.split(s, " ")
@@ -1000,7 +1004,9 @@ defmodule Oban.Console.Interactive do
   defp print_selected(text, list), do: Printer.title([text, print_list(list)]) |> IO.puts()
 
   defp fallback(nil, default), do: default
+  defp fallback("-", _), do: []
   defp fallback([], default), do: default
+  defp fallback(["-"], _), do: []
   defp fallback(value, _), do: value
 
   defp get_customer_integer_list_input(title) do
