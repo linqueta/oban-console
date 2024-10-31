@@ -61,6 +61,7 @@ defmodule Oban.Console.View.Printer do
   def showable(%DateTime{} = datetime), do: Calendar.strftime(datetime, "%Y-%m-%d %H:%M:%S")
   def showable(%NaiveDateTime{} = datetime), do: Calendar.strftime(datetime, "%Y-%m-%d %H:%M:%S")
   def showable(value) when is_binary(value), do: value
+  def showable({value, _}), do: showable(value)
   def showable(value), do: inspect(value)
 
   @spec red(String.t()) :: String.t()

@@ -275,6 +275,7 @@ defmodule Oban.Console.View.Printer do
   def showable(%DateTime{} = datetime), do: Calendar.strftime(datetime, "%Y-%m-%d %H:%M:%S")
   def showable(%NaiveDateTime{} = datetime), do: Calendar.strftime(datetime, "%Y-%m-%d %H:%M:%S")
   def showable(value) when is_binary(value), do: value
+  def showable({value, _}), do: showable(value)
   def showable(value), do: inspect(value)
 
   @spec red(String.t()) :: String.t()
@@ -321,7 +322,8 @@ defmodule Oban.Console.View.Table do
     rows =
       records
       |> Enum.map(fn r ->
-        Enum.map(headers, fn header -> Map.get(r, header) |> Printer.showable() end)
+        # Enum.map(headers, fn header -> Map.get(r, header) |> Printer.showable() end)
+        Enum.map(headers, fn header -> Map.get(r, header) end)
       end)
 
     headers = Enum.map(headers, &to_string/1)
@@ -353,15 +355,24 @@ defmodule Oban.Console.View.Table do
       row
       |> Enum.with_index()
       |> Enum.map_join(" | ", fn {value, index} ->
+        [value, old] =
+          case value do
+            {value, false} -> [value, false]
+            {value, true} -> [value, true]
+            _ -> [value, true]
+          end
+
         value
+        |> Printer.showable()
         |> String.pad_trailing(Enum.at(indexes_pad, index))
-        |> colorize(type)
+        |> colorize(type, old)
       end)
 
     "| " <> formatted <> " |"
   end
 
-  defp colorize(value, type), do: color_for(value, String.trim(value), type)
+  defp colorize(value, type, false), do: color_for(value, "executing", type)
+  defp colorize(value, type, true), do: color_for(value, String.trim(value), type)
 
   defp color_for(value, "false", :row), do: Printer.red(value)
   defp color_for(value, "true", :row), do: Printer.green(value)
@@ -381,7 +392,7 @@ defmodule Oban.Console.View.Table do
     |> Enum.map(fn {_, index} ->
       Enum.reduce(table, 0, fn row, acc ->
         value = Enum.at(row, index)
-        size = (value && String.length(value)) || 0
+        size = (value && String.length(Printer.showable(value))) || 0
 
         max(acc, size)
       end)
@@ -430,8 +441,19 @@ defmodule Oban.Console.Jobs do
       |> Keyword.put(:states, converted_states)
       |> Keyword.put(:limit, limit)
 
-    response = list(opts)
+    response =
+      opts
+      |> list()
+      |> Enum.map(&Map.from_struct/1)
+
     ids = Enum.map(response, fn job -> job.id end)
+
+    listed_before = Storage.get_last_jobs_ids()
+
+    response =
+      Enum.map(response, fn job ->
+        Map.put(job, :id, {job.id, job.id in listed_before})
+      end)
 
     if Enum.sort(Storage.get_last_jobs_opts()) != Enum.sort(opts) do
       Storage.add_job_filter_history(opts)

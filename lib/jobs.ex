@@ -39,8 +39,19 @@ defmodule Oban.Console.Jobs do
       |> Keyword.put(:states, converted_states)
       |> Keyword.put(:limit, limit)
 
-    response = list(opts)
+    response =
+      opts
+      |> list()
+      |> Enum.map(&Map.from_struct/1)
+
     ids = Enum.map(response, fn job -> job.id end)
+
+    listed_before = Storage.get_last_jobs_ids()
+
+    response =
+      Enum.map(response, fn job ->
+        Map.put(job, :id, {job.id, job.id in listed_before})
+      end)
 
     if Enum.sort(Storage.get_last_jobs_opts()) != Enum.sort(opts) do
       Storage.add_job_filter_history(opts)
