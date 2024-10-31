@@ -138,6 +138,8 @@ defmodule Oban.Console.Jobs do
     |> filter_by_states(Keyword.get(opts, :states))
     |> filter_by_queues(Keyword.get(opts, :queues))
     |> filter_by_workers(Keyword.get(opts, :workers))
+    |> filter_by_args(Keyword.get(opts, :args))
+    |> filter_by_meta(Keyword.get(opts, :meta))
     |> sort_by(Keyword.get(opts, :sorts))
     |> limit_by(Keyword.get(opts, :limit))
   end
@@ -180,6 +182,18 @@ defmodule Oban.Console.Jobs do
     query
     |> apply_workers_like(statements[:include], true)
     |> apply_workers_like(statements[:exclude], false)
+  end
+
+  defp filter_by_args(query, nil), do: query
+
+  defp filter_by_args(query, args) do
+    where(query, [j], fragment("?::text", j.args) |> like(^"%#{args}%"))
+  end
+
+  defp filter_by_meta(query, nil), do: query
+
+  defp filter_by_meta(query, meta) do
+    where(query, [j], fragment("?::text", j.meta) |> like(^"%#{meta}%"))
   end
 
   defp apply_workers_like(query, [], _), do: query

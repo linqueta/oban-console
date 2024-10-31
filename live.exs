@@ -529,6 +529,8 @@ defmodule Oban.Console.Jobs do
     |> filter_by_states(Keyword.get(opts, :states))
     |> filter_by_queues(Keyword.get(opts, :queues))
     |> filter_by_workers(Keyword.get(opts, :workers))
+    |> filter_by_args(Keyword.get(opts, :args))
+    |> filter_by_meta(Keyword.get(opts, :meta))
     |> sort_by(Keyword.get(opts, :sorts))
     |> limit_by(Keyword.get(opts, :limit))
   end
@@ -571,6 +573,16 @@ defmodule Oban.Console.Jobs do
     query
     |> apply_workers_like(statements[:include], true)
     |> apply_workers_like(statements[:exclude], false)
+  end
+
+  defp filter_by_args(query, nil), do: query
+  defp filter_by_args(query, args) do
+    where(query, [j], fragment("?::text", j.args) |> like(^"%#{args}%"))
+  end
+
+  defp filter_by_meta(query, nil), do: query
+  defp filter_by_meta(query, meta) do
+    where(query, [j], fragment("?::text", j.meta) |> like(^"%#{meta}%"))
   end
 
   defp apply_workers_like(query, [], _), do: query
@@ -894,49 +906,60 @@ defmodule Oban.Console.Interactive do
     previous_selected_queues = Keyword.get(previous_selected_opts, :queues, [])
     previous_selected_workers = Keyword.get(previous_selected_opts, :workers, [])
     previous_selected_sorts = Keyword.get(previous_selected_opts, :sorts, [])
+    previous_selected_args = Keyword.get(previous_selected_opts, :args, nil)
+    previous_selected_meta = Keyword.get(previous_selected_opts, :meta, nil)
 
     Printer.break()
 
-    if Enum.any?(previous_listed_ids),
-      do: Printer.title(["Listed IDs", print_list(previous_listed_ids)]) |> IO.puts()
+    print_selected("Listed IDs", previous_listed_ids)
 
-    if Enum.any?(previous_selected_ids),
-      do: Printer.title(["Selected IDs", print_list(previous_listed_ids)]) |> IO.puts()
-
-    Printer.title([
-      "States",
+    print_selected("Available States", [
       "1. available, 2. scheduled, 3. retryable, 4. executing, 5. completed, 6. discarded, 7. cancelled"
     ])
-    |> IO.puts()
-
-    if Enum.any?(previous_selected_states),
-      do: Printer.title(["Selected States", print_list(previous_selected_states)]) |> IO.puts()
-
-    Printer.title(["Queues", Queues.list() |> Enum.map(fn q -> q.queue end) |> print_list()])
-    |> IO.puts()
-
-    if Enum.any?(previous_selected_queues),
-      do: Printer.title(["Selected Queues", print_list(previous_selected_queues)]) |> IO.puts()
-
-    if Enum.any?(previous_selected_workers),
-      do: Printer.title(["Selected Workers", print_list(previous_selected_workers)]) |> IO.puts()
-
-    if Enum.any?(previous_selected_sorts),
-      do: Printer.title(["Selected Sort", print_list(previous_selected_sorts)]) |> IO.puts()
 
     Printer.break()
 
-    ids = get_customer_integer_list_input(["Filter", "IDs (comma separated): "]) |> fallback(previous_selected_ids)
+    print_selected("Selected IDs", previous_selected_ids)
+    print_selected("Selected States", previous_selected_states)
+    print_selected("Selected Queues", previous_selected_queues)
+    print_selected("Selected Workers", previous_selected_workers)
+    print_selected("Contains Args", [previous_selected_args])
+    print_selected("Contains Meta", [previous_selected_meta])
+    print_selected("Selected Sort", previous_selected_sorts)
+
+    Printer.break()
+
+    ids =
+      ["Filter", "IDs (comma separated): "]
+      |> get_customer_integer_list_input()
+      |> fallback(previous_selected_ids)
 
     states =
-      get_customer_string_list_input(["Filter", "States (comma separated): "]) |> fallback(previous_selected_states)
+      ["Filter", "States (comma separated): "]
+      |> get_customer_string_list_input()
+      |> fallback(previous_selected_states)
 
     queues =
-      get_customer_string_list_input(["Filter", "Queues (comma separated): "]) |> fallback(previous_selected_queues)
+      ["Filter", "Queues (comma separated): "]
+      |> get_customer_string_list_input()
+      |> fallback(previous_selected_queues)
 
     workers =
-      get_customer_string_list_input(["Filter", "Workers (comma separated, - to exclude): "])
+      ["Filter", "Workers (comma separated, - to exclude): "]
+      |> get_customer_string_list_input()
       |> fallback(previous_selected_workers)
+
+    args =
+      ["Filter", "Args (Contains): "]
+      |> get_customer_string_list_input()
+      |> List.first()
+      |> fallback(previous_selected_args)
+
+    meta =
+      ["Filter", "Meta (Contains): "]
+      |> get_customer_string_list_input()
+      |> List.first()
+      |> fallback(previous_selected_meta)
 
     sorts =
       ["Filter", "Sorts (comma separated): "]
@@ -960,8 +983,21 @@ defmodule Oban.Console.Interactive do
     limit =
       ["Filter", "Limit (default 20): "] |> get_customer_integer_list_input() |> List.first() |> fallback(20)
 
-    jobs(ids: ids, states: states, limit: limit, workers: workers, queues: queues, sorts: sorts)
+    jobs(
+      ids: ids,
+      states: states,
+      limit: limit,
+      workers: workers,
+      queues: queues,
+      sorts: sorts,
+      args: args,
+      meta: meta
+    )
   end
+
+  defp print_selected(_, []), do: :ok
+  defp print_selected(_, [nil]), do: :ok
+  defp print_selected(text, list), do: Printer.title([text, print_list(list)]) |> IO.puts()
 
   defp fallback(nil, default), do: default
   defp fallback([], default), do: default
