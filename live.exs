@@ -421,7 +421,7 @@ defmodule Oban.Console.Jobs do
     limit = Keyword.get(opts, :limit, 20) || 20
     converted_states = convert_states(Keyword.get(opts, :states, [])) || []
     ids = ids_listed_before(opts)
-    sorts = Keyword.get(opts, :sorts, [%{dir: "desc", field: "id"}]) || [%{dir: "desc", field: "id"}]
+    sorts = Keyword.get(opts, :sorts, ["desc:id"]) || ["desc:id"]
 
     opts =
       opts
@@ -607,10 +607,11 @@ defmodule Oban.Console.Jobs do
     Enum.reduce(sorts, query, fn sort, query -> sort_by_single(query, sort) end)
   end
 
-  defp sort_by_single(query, %{dir: direction, field: selected_field}) do
+  defp sort_by_single(query, sort) do
+    [dir, selected_field] = String.split(sort, ":")
     parsed_field = String.to_atom(selected_field)
 
-    case direction do
+    case dir do
       "asc" -> order_by(query, [j], asc: field(j, ^parsed_field))
       "desc" -> order_by(query, [j], desc: field(j, ^parsed_field))
     end
@@ -892,11 +893,7 @@ defmodule Oban.Console.Interactive do
     previous_selected_states = Keyword.get(previous_selected_opts, :states, [])
     previous_selected_queues = Keyword.get(previous_selected_opts, :queues, [])
     previous_selected_workers = Keyword.get(previous_selected_opts, :workers, [])
-
-    previous_selected_sorts =
-      previous_selected_opts
-      |> Keyword.get(:sorts, [])
-      |> Enum.map(fn %{dir: dir, field: field} -> "#{dir}: #{field}" end)
+    previous_selected_sorts = Keyword.get(previous_selected_opts, :sorts, [])
 
     Printer.break()
 
@@ -929,12 +926,17 @@ defmodule Oban.Console.Interactive do
 
     Printer.break()
 
-    ids = get_customer_integer_list_input(["Filter", "IDs (comma separated): "])
-    states = get_customer_string_list_input(["Filter", "States (comma separated): "])
-    queues = get_customer_string_list_input(["Filter", "Queues (comma separated): "])
+    ids = get_customer_integer_list_input(["Filter", "IDs (comma separated): "]) |> fallback(previous_selected_ids)
+
+    states =
+      get_customer_string_list_input(["Filter", "States (comma separated): "]) |> fallback(previous_selected_states)
+
+    queues =
+      get_customer_string_list_input(["Filter", "Queues (comma separated): "]) |> fallback(previous_selected_queues)
 
     workers =
       get_customer_string_list_input(["Filter", "Workers (comma separated, - to exclude): "])
+      |> fallback(previous_selected_workers)
 
     sorts =
       ["Filter", "Sorts (comma separated): "]
@@ -944,21 +946,26 @@ defmodule Oban.Console.Interactive do
         trimmed = Enum.map(splited, &String.trim/1)
 
         case trimmed do
-          [field] -> %{dir: :asc, field: field}
-          [field, "asc"] -> %{dir: :asc, field: field}
-          [field, "desc"] -> %{dir: :desc, field: field}
-          ["asc", field] -> %{dir: :asc, field: field}
-          ["desc", field] -> %{dir: :desc, field: field}
+          [field] -> "asc:#{field}"
+          [field, "asc"] -> "asc:#{field}"
+          ["asc", field] -> "asc:#{field}"
+          [field, "desc"] -> "desc:#{field}"
+          ["desc", field] -> "desc:#{field}"
           _ -> nil
         end
       end)
       |> Enum.reject(&is_nil/1)
+      |> fallback(previous_selected_sorts)
 
     limit =
-      ["Filter", "Limit (default 20): "] |> get_customer_integer_list_input() |> List.first()
+      ["Filter", "Limit (default 20): "] |> get_customer_integer_list_input() |> List.first() |> fallback(20)
 
     jobs(ids: ids, states: states, limit: limit, workers: workers, queues: queues, sorts: sorts)
   end
+
+  defp fallback(nil, default), do: default
+  defp fallback([], default), do: default
+  defp fallback(value, _), do: value
 
   defp get_customer_integer_list_input(title) do
     Printer.gets(title)

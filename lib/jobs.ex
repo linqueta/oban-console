@@ -30,7 +30,7 @@ defmodule Oban.Console.Jobs do
     limit = Keyword.get(opts, :limit, 20) || 20
     converted_states = convert_states(Keyword.get(opts, :states, [])) || []
     ids = ids_listed_before(opts)
-    sorts = Keyword.get(opts, :sorts, [%{dir: "desc", field: "id"}]) || [%{dir: "desc", field: "id"}]
+    sorts = Keyword.get(opts, :sorts, ["desc:id"]) || ["desc:id"]
 
     opts =
       opts
@@ -216,10 +216,11 @@ defmodule Oban.Console.Jobs do
     Enum.reduce(sorts, query, fn sort, query -> sort_by_single(query, sort) end)
   end
 
-  defp sort_by_single(query, %{dir: direction, field: selected_field}) do
+  defp sort_by_single(query, sort) do
+    [dir, selected_field] = String.split(sort, ":")
     parsed_field = String.to_atom(selected_field)
 
-    case direction do
+    case dir do
       "asc" -> order_by(query, [j], asc: field(j, ^parsed_field))
       "desc" -> order_by(query, [j], desc: field(j, ^parsed_field))
     end
