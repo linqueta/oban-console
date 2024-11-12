@@ -39,7 +39,7 @@ defmodule Oban.Console.Storage do
       {_, selected_profile} ->
         profile = Map.get(get_profiles(), selected_profile)
 
-        save_profile(name, profile)
+        save_profile(selected_profile, profile)
         put_oban_console_profile_env(selected_profile)
 
       error ->
