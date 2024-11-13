@@ -10,6 +10,28 @@ defmodule ObanMock do
     ]
   end
 
+  @spec queue_jobs() :: [{String.t(), String.t(), integer()}]
+  def queue_jobs do
+    [
+      {"default", "available", 10},
+      {"default", "executing", 5},
+      {"default", "completed", 100},
+      {"default", "cancelled", 3},
+      {"default", "discarded", 0},
+      {"searching", "executing", 0},
+      {"searching", "scheduled", 0},
+      {"searching", "retryable", 5},
+      {"searching", "cancelled", 0},
+      {"searching", "discarded", 20},
+      {"matching", "available", 0},
+      {"matching", "scheduled", 29},
+      {"matching", "retryable", 0},
+      {"matching", "completed", 40},
+      {"matching", "cancelled", 0},
+      {"matching", "discarded", 0}
+    ]
+  end
+
   @spec jobs() :: [Oban.Job.t()]
   def jobs do
     [:id, :worker, :state, :queue, :attempt, :inserted_at, :attempted_at, :scheduled_at]

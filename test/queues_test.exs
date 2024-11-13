@@ -15,6 +15,7 @@ defmodule Oban.Console.QueuesTest do
   describe "show_list/0" do
     test "shows the list" do
       Mimic.stub(Repo, :queues, fn -> ObanMock.queues() end)
+      Mimic.stub(Repo, :queue_jobs, fn -> ObanMock.queue_jobs() end)
 
       assert :ok = Queues.show_list()
     end

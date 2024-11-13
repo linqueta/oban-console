@@ -1,4 +1,6 @@
 defmodule Oban.Console.Repo do
+  import Ecto.Query
+
   @spec queues() :: [map()]
   def queues do
     Enum.map(Oban.config().queues, fn {name, _} ->
@@ -6,6 +8,11 @@ defmodule Oban.Console.Repo do
       |> Oban.check_queue()
       |> Map.take([:queue, :paused, :local_limit])
     end)
+  end
+
+  @spec queue_jobs() :: [{String.t(), String.t(), integer()}]
+  def queue_jobs do
+    all(from(j in Oban.Job, group_by: [j.queue, j.state], select: {j.queue, j.state, count(j.id)}))
   end
 
   @spec pause_queue(String.t()) :: :ok

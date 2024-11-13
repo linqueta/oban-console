@@ -8,9 +8,47 @@ defmodule Oban.Console.Queues do
 
   @spec show_list() :: :ok
   def show_list do
-    headers = [:queue, :paused, :local_limit]
+    headers = [
+      :queue,
+      :paused,
+      :local_limit,
+      :available,
+      :executing,
+      :scheduled,
+      :retryable,
+      :completed,
+      :cancelled,
+      :discarded
+    ]
 
-    Table.show(list(), headers, nil)
+    queues = list()
+    queue_jobs = Repo.queue_jobs()
+
+    default = %{
+      queue: nil,
+      paused: false,
+      local_limit: nil,
+      available: 0,
+      executing: 0,
+      scheduled: 0,
+      retryable: 0,
+      completed: 0,
+      cancelled: 0,
+      discarded: 0
+    }
+
+    queues =
+      Enum.map(queues, fn queue ->
+        states =
+          queue_jobs
+          |> Enum.filter(fn {name, _, _} -> name == queue.queue end)
+          |> Enum.map(fn {_, state, count} -> {String.to_atom(state), count} end)
+          |> Map.new()
+
+        default |> Map.merge(queue) |> Map.merge(states)
+      end)
+
+    Table.show(queues, headers, nil)
   end
 
   @spec pause_queues([String.t()]) :: :ok
