@@ -11,7 +11,8 @@ defmodule Oban.Console.MixProject do
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       elixirc_paths: elixirc_paths(Mix.env()),
-      docs: docs()
+      docs: docs(),
+      package: package()
     ]
   end
 
@@ -22,6 +23,15 @@ defmodule Oban.Console.MixProject do
   def application do
     [
       extra_applications: [:logger]
+    ]
+  end
+
+  def package do
+    [
+      name: "oban_console",
+      files: ~w(lib .credo.exs .formatter.exs mix.exs README*),
+      licenses: ["Apache-2.0"],
+      links: %{"GitHub" => "https://github.com/linqueta/oban-console"}
     ]
   end
 
