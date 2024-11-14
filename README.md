@@ -17,7 +17,7 @@ def deps do
 end
 ```
 
-You can play before using in project setting the repo [Oban.Console.Playground](https://github.com/linqueta/oban-console-playground)
+You can play before using it in your project setting the repo [Oban.Console.Playground](https://github.com/linqueta/oban-console-playground)
 
 ```shell
 git clone https://github.com/linqueta/oban-console-playground.git
