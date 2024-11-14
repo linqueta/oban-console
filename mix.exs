@@ -8,6 +8,7 @@ defmodule Oban.Console.MixProject do
       app: :oban_console,
       version: @version,
       elixir: "~> 1.14",
+      description: "Query, debug, retry, cancel Oban jobs and much more easily",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       elixirc_paths: elixirc_paths(Mix.env()),

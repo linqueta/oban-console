@@ -1,7 +1,7 @@
 # Oban.Console
 
-[![Version](https://img.shields.io/hexpm/v/oban-console.svg)](https://hex.pm/packages/oban-console)
-[![Docs](https://img.shields.io/badge/hex-docs-lightgreen.svg)](https://hexdocs.pm/oban-console/)
+[![Version](https://img.shields.io/hexpm/v/oban_console.svg)](https://hex.pm/packages/oban_console)
+[![Docs](https://img.shields.io/badge/hex-docs-lightgreen.svg)](https://hexdocs.pm/oban_console/)
 
 Query, debug, retry, cancel Oban jobs and much more easily.
 
