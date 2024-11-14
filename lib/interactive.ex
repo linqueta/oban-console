@@ -148,6 +148,8 @@ defmodule Oban.Console.Interactive do
         :ok
 
       _ ->
+        Printer.red("Error | Profile not found | Add a Profile at the initial menu") |> IO.puts()
+
         :ok
     end
   end

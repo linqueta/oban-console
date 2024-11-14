@@ -157,6 +157,8 @@ defmodule Oban.Console.Storage do
 end
 
 defmodule Oban.Console.Repo do
+  import Ecto.Query
+
   @spec queues() :: [map()]
   def queues do
     Enum.map(Oban.config().queues, fn {name, _} ->
@@ -164,6 +166,11 @@ defmodule Oban.Console.Repo do
       |> Oban.check_queue()
       |> Map.take([:queue, :paused, :local_limit])
     end)
+  end
+
+  @spec queue_jobs() :: [{String.t(), String.t(), integer()}]
+  def queue_jobs do
+    all(from(j in Oban.Job, group_by: [j.queue, j.state], select: {j.queue, j.state, count(j.id)}))
   end
 
   @spec pause_queue(String.t()) :: :ok
@@ -426,7 +433,7 @@ defmodule Oban.Console.Jobs do
 
   @spec show_list([Keyword.t()]) :: :ok
   def show_list(opts \\ []) do
-    headers = [:id, :worker, :state, :queue, :attempt, :inserted_at, :attempted_at, :scheduled_at]
+    headers = [:id, :worker, :state, :queue, :attempt, :inserted_at, :attempted_at, :scheduled_at, :completed_at]
     opts = if opts == [], do: Storage.get_last_jobs_opts(), else: opts
 
     limit = Keyword.get(opts, :limit, 20) || 20
@@ -664,9 +671,47 @@ defmodule Oban.Console.Queues do
 
   @spec show_list() :: :ok
   def show_list do
-    headers = [:queue, :paused, :local_limit]
+    headers = [
+      :queue,
+      :paused,
+      :local_limit,
+      :available,
+      :executing,
+      :scheduled,
+      :retryable,
+      :completed,
+      :cancelled,
+      :discarded
+    ]
 
-    Table.show(list(), headers, nil)
+    queues = list()
+    queue_jobs = Repo.queue_jobs()
+
+    default = %{
+      queue: nil,
+      paused: false,
+      local_limit: nil,
+      available: 0,
+      executing: 0,
+      scheduled: 0,
+      retryable: 0,
+      completed: 0,
+      cancelled: 0,
+      discarded: 0
+    }
+
+    queues =
+      Enum.map(queues, fn queue ->
+        states =
+          queue_jobs
+          |> Enum.filter(fn {name, _, _} -> name == queue.queue end)
+          |> Enum.map(fn {_, state, count} -> {String.to_atom(state), count} end)
+          |> Map.new()
+
+        default |> Map.merge(queue) |> Map.merge(states)
+      end)
+
+    Table.show(queues, headers, nil)
   end
 
   @spec pause_queues([String.t()]) :: :ok

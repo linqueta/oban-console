@@ -1,4 +1,4 @@
-# Oba.Console
+# Oban.Console
 
 Query, debug, retry, cancel Oban jobs and much more easily.
 
@@ -65,20 +65,17 @@ Explore easily the Oban Jobs
 0. Return
 ```
 
-Always you started, the app tries to fetch the last query performed by your profile. In case that it's empty, it performs a query ordering by `id:desc`
+Always you started, the app tries to fetch the last query performed by your profile. In case that it's empty, it performs a query ordering by `desc:id`
 
-# TODO: Print jobs
+![Jobs](assets/jobs.png)
 
 The yellow color at ID column means new jobs that were not showed in the previous pagination. It helps to understand about the new jobs created while you didn't refresh the list.
 
 #### Filter
+
+![Filters](assets/filter.png)
+
 ```
-Listed IDs | 7773823, 7773822, 7773821, 7773820, 7773819, 7773818, 7773817, 7773816, 7773815, 7773814, 7773813, 7773812, 7773811, 7773810, 7773809, 7773808, 7773807, 7773806, 7773805, 7773804
-Available States | 1. available, 2. scheduled, 3. retryable, 4. executing, 5. completed, 6. discarded, 7. cancelled
-
-Selected Sort | desc:id
-
-Hint | Use comma to separate values, Use - to clean filters, Use : to sort values
 Filter | IDs:
 Filter | States:
 Filter | Queues:
@@ -110,12 +107,16 @@ The option `Clean` cleans all filters applied listing it sorted only by the job 
 
 #### History
 
-# TODO: Produce a big history
+![History](assets/history.png)
 
-The option `History` allow you to check the queries' history saved at the selected Profile. You can easily define filter by the queries listed copying and pasting their content into the command, like:
+The option `History` allows you to check the queries' history saved at the selected Profile. You can easily define filter by the queries listed copying and pasting their content into the command, like:
 
 ```
 Select an option: [states: ["available"], limit: 50, ids: [], sorts: ["desc:id"]]
 ```
 
 ### Queues
+
+![Queues](assets/queues.png)
+
+At Queues menu, you can check the queus and the jobs' states related to them. You can `Pause` or `Resume` a queue processing using the menus too
