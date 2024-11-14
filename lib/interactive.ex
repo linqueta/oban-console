@@ -311,7 +311,10 @@ defmodule Oban.Console.Interactive do
       |> fallback(previous_selected_sorts)
 
     limit =
-      ["Filter", "Limit (default 20): "] |> get_customer_integer_list_input() |> List.first() |> fallback(20)
+      ["Filter", "Limit (default 20): "]
+      |> get_customer_integer_list_input()
+      |> List.first()
+      |> fallback(20)
 
     jobs(
       ids: ids,

@@ -36,8 +36,7 @@ defmodule Oban.Console.JobsTest do
 
       assert :ok = Jobs.show_list()
 
-      assert {"API", %{"filters" => [%{"ids" => [], "limit" => 20, "states" => []}]}} =
-               Storage.get_profile()
+      assert {"API", %{"filters" => [%{"ids" => [], "limit" => 20, "states" => []}]}} = Storage.get_profile()
 
       assert :ok = Jobs.show_list(limit: 50, states: ["scheduled"])
 

@@ -7,7 +7,7 @@ defmodule Oban.Console.MixProject do
     [
       app: :oban_console,
       version: @version,
-      elixir: "~> 1.15",
+      elixir: "~> 1.14",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       elixirc_paths: elixirc_paths(Mix.env()),

@@ -13,7 +13,7 @@ defmodule Oban.Console.StorageTest do
     end
 
     test "returns last options saved" do
-      opts = [states: ["scheduled"], limit: 50]
+      opts = [limit: 50, states: ["scheduled"]]
 
       Storage.set_last_jobs_opts(opts)
 
@@ -27,7 +27,7 @@ defmodule Oban.Console.StorageTest do
     end
 
     test "saves options" do
-      opts = [states: ["scheduled"], limit: 50]
+      opts = [limit: 50, states: ["scheduled"]]
 
       Storage.set_last_jobs_opts(opts)
 
@@ -35,8 +35,8 @@ defmodule Oban.Console.StorageTest do
     end
 
     test "updates options" do
-      opts = [states: ["scheduled"], limit: 50]
-      new_opts = [states: ["scheduled", "completed"], limit: 100]
+      opts = [limit: 50, states: ["scheduled"]]
+      new_opts = [limit: 100, states: ["scheduled", "completed"]]
 
       Storage.set_last_jobs_opts(opts)
       Storage.set_last_jobs_opts(new_opts)
@@ -128,8 +128,7 @@ defmodule Oban.Console.StorageTest do
       assert :ok = Storage.add_job_filter_history(limit: 50)
       assert :ok = Storage.add_job_filter_history(states: ["available"])
 
-      assert {"search api", %{"filters" => [%{"states" => ["available"]}, %{"limit" => 50}]}} =
-               Storage.get_profile()
+      assert {"search api", %{"filters" => [%{"states" => ["available"]}, %{"limit" => 50}]}} = Storage.get_profile()
     end
 
     test "skips adding filters when there isn't profile selected" do
