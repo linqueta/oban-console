@@ -1,5 +1,8 @@
 # Oban.Console
 
+[![Version](https://img.shields.io/hexpm/v/oban-console.svg)](https://hex.pm/packages/oban-console)
+[![Docs](https://img.shields.io/badge/hex-docs-lightgreen.svg)](https://hexdocs.pm/oban-console/)
+
 Query, debug, retry, cancel Oban jobs and much more easily.
 
 ![oban-console-800](https://github.com/user-attachments/assets/07a18917-e5dc-40ab-9dc7-2b102fc22616)
