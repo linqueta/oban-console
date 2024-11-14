@@ -2,7 +2,7 @@
 
 Query, debug, retry, cancel Oban jobs and much more easily.
 
-![App](https://res.cloudinary.com/linqueta/image/upload/v1731590632/nirafqd6q4nru0pqwxu2.gif)
+![oban-console-800](https://github.com/user-attachments/assets/07a18917-e5dc-40ab-9dc7-2b102fc22616)
 
 ## Installation
 
@@ -69,13 +69,13 @@ Explore easily the Oban Jobs
 
 Always you started, the app tries to fetch the last query performed by your profile. In case that it's empty, it performs a query ordering by `desc:id`
 
-![Jobs](https://res.cloudinary.com/linqueta/image/upload/v1731588451/mor9lgfr15kod57xo24t.png)
+![Jobs](https://github.com/user-attachments/assets/e390cfd1-ec79-45bf-9a3f-2ad5bf74768d)
 
 The yellow color at ID column means new jobs that were not showed in the previous pagination. It helps to understand about the new jobs created while you didn't refresh the list.
 
 #### Filter
 
-![Filters](https://res.cloudinary.com/linqueta/image/upload/v1731588452/bj78lad2ipsew9v5cb0p.png)
+![Filters](https://github.com/user-attachments/assets/ffa35271-4a46-4c78-ab3e-e8bf9fd72aa7)
 
 ```
 Filter | IDs:
@@ -109,7 +109,7 @@ The option `Clean` cleans all filters applied listing it sorted only by the job 
 
 #### History
 
-![History](https://res.cloudinary.com/linqueta/image/upload/v1731588451/oradrlcszimmhd1gcpbl.png)
+![History](https://github.com/user-attachments/assets/9178012b-df83-4cd0-ae76-0f2be43f890b)
 
 The option `History` allows you to check the queries' history saved at the selected Profile. You can easily define filter by the queries listed copying and pasting their content into the command, like:
 
@@ -119,6 +119,6 @@ Select an option: [states: ["available"], limit: 50, ids: [], sorts: ["desc:id"]
 
 ### Queues
 
-![Queues](https://res.cloudinary.com/linqueta/image/upload/v1731588450/mowm8gyxexog0tfjcoca.png)
+![Queues](https://github.com/user-attachments/assets/ef8d288f-c09b-4f0e-9846-4e72398601f4)
 
 At Queues menu, you can check the queus and the jobs' states related to them. You can `Pause` or `Resume` a queue processing using the menus too
