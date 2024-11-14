@@ -17,6 +17,18 @@ def deps do
 end
 ```
 
+You can play before using in project setting the repo [Oban.Console.Playground](https://github.com/linqueta/oban-console-playground)
+
+```shell
+git clone https://github.com/linqueta/oban-console-playground.git
+cd oban-console-playground
+
+mix ecto.setup
+iex -S mix phx.server
+
+iex(1)> Oban.Console.interactive()
+```
+
 ## Usage
 
 Oban.Console can be used when instelled to your project or directly if you copy the file `live.exs` and paste at your console.
