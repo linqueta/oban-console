@@ -15,10 +15,10 @@ defmodule Oban.Console.Repo do
     all(from(j in Oban.Job, group_by: [j.queue, j.state], select: {j.queue, j.state, count(j.id)}))
   end
 
-  @spec pause_queue(String.t()) :: :ok
+  @spec pause_queue(atom()) :: :ok
   def pause_queue(name), do: Oban.pause_queue(queue: name)
 
-  @spec resume_queue(String.t()) :: :ok
+  @spec resume_queue(atom()) :: :ok
   def resume_queue(name), do: Oban.resume_queue(queue: name)
 
   @spec all(Ecto.Query.t()) :: [map()]

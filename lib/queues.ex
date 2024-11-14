@@ -56,7 +56,7 @@ defmodule Oban.Console.Queues do
   def pause_queues([]), do: :ok
 
   def pause_queues(name) when is_binary(name) do
-    Repo.pause_queue(queue: name)
+    Repo.pause_queue(String.to_atom(name))
     ["Paused", name] |> Printer.title() |> IO.puts()
   end
 
@@ -69,7 +69,7 @@ defmodule Oban.Console.Queues do
   def resume_queues([]), do: :ok
 
   def resume_queues(name) when is_binary(name) do
-    Repo.resume_queue(queue: name)
+    Repo.resume_queue(String.to_atom(name))
     ["Resumed", name] |> Printer.title() |> IO.puts()
   end
 

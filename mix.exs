@@ -1,14 +1,17 @@
 defmodule Oban.Console.MixProject do
   use Mix.Project
 
+  @version "0.1.0"
+
   def project do
     [
       app: :oban_console,
-      version: "0.1.0",
+      version: @version,
       elixir: "~> 1.15",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
-      elixirc_paths: elixirc_paths(Mix.env())
+      elixirc_paths: elixirc_paths(Mix.env()),
+      docs: docs()
     ]
   end
 
@@ -29,7 +32,17 @@ defmodule Oban.Console.MixProject do
       {:mimic, "~> 1.7", only: :test},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:oban, "~> 2.17", optional: true},
-      {:jason, "~> 1.4"}
+      {:jason, "~> 1.4"},
+      {:ex_doc, "~> 0.31", only: :dev, runtime: false}
+    ]
+  end
+
+  defp docs do
+    [
+      source_ref: "v#{@version}",
+      main: "readme",
+      formatters: ["html"],
+      extras: ["README.md"]
     ]
   end
 end
