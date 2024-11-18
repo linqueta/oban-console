@@ -433,7 +433,7 @@ defmodule Oban.Console.Jobs do
 
   @spec show_list([Keyword.t()]) :: :ok
   def show_list(opts \\ []) do
-    headers = [:id, :worker, :state, :queue, :attempt, :inserted_at, :attempted_at, :scheduled_at, :completed_at]
+    headers = [:id, :worker, :state, :queue, :attempt, :inserted_at, :scheduled_at, :completed_at]
     opts = if opts == [], do: Storage.get_last_jobs_opts(), else: opts
 
     limit = Keyword.get(opts, :limit, 20) || 20
@@ -1054,7 +1054,10 @@ defmodule Oban.Console.Interactive do
       |> fallback(previous_selected_sorts)
 
     limit =
-      ["Filter", "Limit (default 20): "] |> get_customer_integer_list_input() |> List.first() |> fallback(20)
+      ["Filter", "Limit (default 20): "]
+      |> get_customer_integer_list_input()
+      |> List.first()
+      |> fallback(20)
 
     jobs(
       ids: ids,

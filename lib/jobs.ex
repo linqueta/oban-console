@@ -24,7 +24,7 @@ defmodule Oban.Console.Jobs do
 
   @spec show_list([Keyword.t()]) :: :ok
   def show_list(opts \\ []) do
-    headers = [:id, :worker, :state, :queue, :attempt, :inserted_at, :attempted_at, :scheduled_at, :completed_at]
+    headers = [:id, :worker, :state, :queue, :attempt, :inserted_at, :scheduled_at, :completed_at]
     opts = if opts == [], do: Storage.get_last_jobs_opts(), else: opts
 
     limit = Keyword.get(opts, :limit, 20) || 20
