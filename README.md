@@ -3,7 +3,7 @@
 [![Version](https://img.shields.io/hexpm/v/oban_console.svg)](https://hex.pm/packages/oban_console)
 [![Docs](https://img.shields.io/badge/hex-docs-lightgreen.svg)](https://hexdocs.pm/oban_console/)
 
-Query, debug, retry, cancel Oban jobs and much more easily.
+Query, debug, retry, cancel Oban jobs and much more
 
 ![oban-console-800](https://github.com/user-attachments/assets/07a18917-e5dc-40ab-9dc7-2b102fc22616)
 
@@ -17,7 +17,7 @@ def deps do
 end
 ```
 
-You can play before using in project setting the repo [Oban.Console.Playground](https://github.com/linqueta/oban-console-playground)
+You can play before using it in your project setting the repo [Oban.Console.Playground](https://github.com/linqueta/oban-console-playground)
 
 ```shell
 git clone https://github.com/linqueta/oban-console-playground.git
